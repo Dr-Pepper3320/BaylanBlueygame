@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>PupTown Adventure</title>
+<style>
+  :root{ --ink:#0b1b33; --bg:#cfeaff; --ui:#1d66ff; --ui2:#fff; --card:#ffffff; --mut:#5a7186; }
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  #game{position:fixed;inset:0;display:block;background:linear-gradient(#bfe3ff,#e9f7ff); touch-action:none;}
+  .hud{position:fixed;left:0;right:0;top:0;display:flex;gap:.5rem;align-items:center;padding:.5rem .75rem;pointer-events:none}
+  .btn,.tab{pointer-events:auto;background:var(--ui);color:var(--ui2);border:none;border-radius:12px;padding:.6rem .9rem;font-weight:800;box-shadow:0 4px 0 rgba(0,0,0,.15);user-select:none}
+  .btn:active,.tab:active{transform:translateY(2px)}
+  .ghost{background:rgba(255,255,255,.7);color:var(--ink)}
+  .right{margin-left:auto;display:flex;gap:.5rem}
+  .badge{pointer-events:none;background:#fff;border-radius:12px;padding:.35rem .6rem;font-weight:700;color:#123;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+  .panel{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:2rem;z-index:5}
+  .card{width:min(920px,92vw);max-height:82vh;overflow:auto;background:var(--card);border-radius:18px;padding:1rem;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+  .close{float:right}
+  h1,h2{margin:.2rem 0 .6rem}
+  .tabs{display:flex;gap:.5rem;margin:.5rem 0 .75rem}
+  .tab{background:#edf3ff;color:#1d2b48}
+  .tab.active{background:var(--ui);color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+  .sticker{border:3px solid #eee;border-radius:14px;padding:.6rem;text-align:center;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;background:#fff}
+  .sticker.locked{filter:grayscale(1) contrast(.7);opacity:.7}
+  .sticker .face{width:72px;height:72px;border-radius:12px;margin-bottom:.4rem;border:4px solid rgba(0,0,0,.05);object-fit:contain;background:#f7f7f7}
+  .controls{position:fixed;inset:0;pointer-events:none}
+  .stick{position:absolute;left:18px;bottom:18px;width:160px;height:160px;pointer-events:auto;touch-action:none}
+  .stick .base{width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,.35);backdrop-filter:blur(6px)}
+  .stick .nub{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 6px 14px rgba(0,0,0,.25)}
+  .action{position:absolute;right:18px;bottom:28px;pointer-events:auto}
+  @media (hover:hover) and (pointer:fine){ .controls{display:none} .action{display:none} }
+  .toast{position:fixed;left:50%;bottom:18vh;transform:translateX(-50%);background:#fff;color:#123;border-radius:14px;padding:.6rem .9rem;font-weight:700;box-shadow:0 10px 24px rgba(0,0,0,.2);opacity:0;transition:.2s;z-index:6}
+  .toast.show{opacity:1}
+  .devbar{position:fixed;left:12px;bottom:12px;background:rgba(0,0,0,.6);color:#fff;
+    padding:.5rem .6rem;border-radius:10px;display:none;gap:.4rem;align-items:center;
+    font:600 12px system-ui,-apple-system,Segoe UI,Roboto,Arial;z-index:4}
+  .devbar button{background:#fff;color:#111;border:none;border-radius:8px;
+    padding:.35rem .55rem;font-weight:800}
+  .dev-tag{position:fixed;right:12px;bottom:12px;background:#ffd54d;color:#111;
+    padding:.35rem .55rem;border-radius:8px;font:800 12px system-ui;display:none;z-index:4}
+  .err{position:fixed;left:12px;top:60px;background:#ffebe8;color:#8a1f11;border:2px solid #f1b0ab;
+    padding:.5rem .6rem;border-radius:8px;display:none;font:700 12px system-ui;max-width:90vw;z-index:7}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" aria-live="polite">
+  <span class="badge" id="stateBadge">Menu</span>
+  <span class="badge" id="zoneBadge">—</span>
+  <div class="right">
+    <button class="btn ghost" id="btnMenu">Menu</button>
+    <button class="btn ghost" id="btnMap">Map</button>
+    <button class="btn ghost" id="btnStickers">Stickers</button>
+    <button class="btn ghost" id="btnProfile">Profile</button>
+  </div>
+</div>
+
+<div class="panel" id="menuPanel" aria-modal="true" role="dialog">
+  <div class="card">
+    <button class="btn close" id="closeMenu">Close</button>
+    <h2 style="margin:0 0 .25rem 0;">PupTown Adventure</h2>
+    <div style="color:#5a7186;margin-bottom:.5rem">Explore the map, collect everyone in each location to complete it, and move on!</div>
+    <div class="tabs">
+      <button class="tab active" data-tab="play">Play</button>
+      <button class="tab" data-tab="stickers">Sticker Book</button>
+      <button class="tab" data-tab="profile">Profile</button>
+    </div>
+    <div id="menuPlay">
+      <p><b>How to play</b> — Start at school. Catch everyone there to unlock the next place. Desktop: WASD/Arrows + Space. Mobile: joystick + Collect.</p>
+      <button class="btn" id="startGame">Start / Continue</button>
+      <button class="btn ghost" id="resetProgress">Reset Progress</button>
+    </div>
+    <div id="menuStickers" style="display:none">
+      <h2>Sticker Book</h2>
+      <div class="grid" id="stickerGrid"></div>
+    </div>
+    <div id="menuProfile" style="display:none">
+      <h2>Profile</h2>
+      <label>Name<br/><input id="profName" placeholder="Your name" style="padding:.5rem;border-radius:10px;border:2px solid #e6edf7;width:260px"/></label>
+      <div style="height:.4rem"></div>
+      <label>Avatar color<br/><input type="color" id="profColor" value="#2d7cff" style="height:44px;border:none;background:none"/></label>
+      <div style="height:.6rem"></div>
+      <button class="btn" id="saveProfile">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUIZ PANEL (Calypso) -->
+<div class="panel" id="quizPanel" aria-modal="true" role="dialog">
+  <div class="card">
+    <button class="btn close" id="quizClose">Not now</button>
+    <h2 id="quizTitle" style="margin:0 0 .25rem 0;">Calypso’s Question</h2>
+    <p id="quizPrompt" style="margin:.25rem 0 1rem">What is 2 + 2?</p>
+    <div id="quizChoices" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="stick" id="stick"><div class="base"></div><div class="nub" id="nub"></div></div>
+  <button class="btn action" id="btnCollect">Collect</button>
+</div>
+
+<div class="devbar" id="devBar">
+  <span id="devInfo">DEV: —</span>
+  <button id="devCopy">Copy JSON</button>
+  <button id="devSave">Save</button>
+  <button id="devDownload">Download JSON</button>
+  <button id="devReset">Reset</button>
+  <button id="devExit">Exit</button>
+</div>
+<div class="dev-tag" id="devTag">DEV MODE</div>
+
+<div class="toast" id="toast"></div>
+<div class="err" id="err"></div>
+
+<script>
+(() => {
+  const errEl = document.getElementById('err');
+  window.addEventListener('error', (e)=>{ errEl.textContent = 'Error: ' + (e.message || e.error); errEl.style.display = 'block'; });
+  if (typeof window.json === 'undefined') window.json = window.JSON;
+
+  // ---------- Canvas & DPR ----------
+  const SAVE_KEY = "puptown_save_v4";
+  const DPR = Math.max(1, Math.min(2, devicePixelRatio || 1));
+  const SHOW_LABELS = false;
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  function resize(){ canvas.width=Math.floor(innerWidth*DPR); canvas.height=Math.floor(innerHeight*DPR); canvas.style.width=innerWidth+'px'; canvas.style.height=innerHeight+'px'; }
+  addEventListener('resize', resize, {passive:true}); resize();
+
+  // ---------- App state ----------
+  const STATES = { MENU:'Menu', MAP:'Map', LEVEL:'Level' };
+  let app = {
+    state: STATES.MENU,
+    profile: { name:"Player", color:"#2d7cff" },
+    collected: new Set(),
+    visitedPlaces: new Set(),
+    lastPlace: null,
+    progress: null,
+    currentLevelIdx: 0
+  };
+
+  // ---------- Image loader ----------
+  const images = {};
+  function hyphenUnderscoreVariants(pathBase){
+    const slash = pathBase.lastIndexOf('/');
+    const dir = slash >= 0 ? pathBase.slice(0, slash+1) : '';
+    const name = slash >= 0 ? pathBase.slice(slash+1) : pathBase;
+    const alt = name.includes('-') ? name.replace(/-/g,'_') : name.replace(/_/g,'-');
+    return alt === name ? [pathBase] : [dir+name, dir+alt];
+  }
+  function buildSrcs(srcOrBase){
+    const bases = Array.isArray(srcOrBase) ? srcOrBase : [srcOrBase];
+    const exts  = ['webp','png','jpg','jpeg','jfif'];
+    const out = [];
+    for (const b0 of bases){
+      for (const b of hyphenUnderscoreVariants(b0)){
+        const m = /^(.*)\.(webp|png|jpg|jpeg|jfif)$/i.exec(b);
+        if (m){ out.push(b); continue; }
+        for (const ext of exts){ out.push(`${b}.${ext}`); }
+      }
+    }
+    const more = [];
+    for (const p of out){
+      if (p.startsWith('images/')) more.push(p.replace(/^images\//,''));
+      else more.push('images/'+p);
+    }
+    return [...new Set(out.concat(more))];
+  }
+  function loadImageWithFallback(key, srcOrBase){
+    const sources = buildSrcs(srcOrBase);
+    return new Promise((resolve)=>{
+      let i=0;
+      const tryNext = () => {
+        if (i>=sources.length){ images[key]=null; return resolve(null); }
+        const im = new Image();
+        im.onload = ()=>{ images[key]=im; resolve(im); };
+        im.onerror = ()=>{ i++; tryNext(); };
+        im.src = sources[i];
+      };
+      tryNext();
+    });
+  }
+
+  // ---------- Sizes & camera ----------
+  const BASE_LEVEL_W = 1536, BASE_LEVEL_H = 1024;
+  let MAP_W = 3200, MAP_H = 2000;
+  let LEVEL_W = BASE_LEVEL_W, LEVEL_H = BASE_LEVEL_H;
+
+  const PLAY_VIEW_FRACTION = 0.20;
+  const camera = { x:0, y:0, scale:1 };
+  const CAMERA_HARD_LOCK = true;
+
+  function computeLevelScale(vw, vh){
+    if (dev.enabled) return Math.min(vw/LEVEL_W, vh/LEVEL_H);
+    return Math.min(vw/(LEVEL_W*PLAY_VIEW_FRACTION), vh/(LEVEL_H*PLAY_VIEW_FRACTION));
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  // ---------- Places & progression ----------
+  const places = [
+    {id:'family_home', name:"Bluey & Bingo's House", px:0.136064, py:0.486874, icon:'locations/home',    labelSize:16, iconSize:62},
+    {id:'playground',  name:"Playground",             px:0.121641, py:0.858954, icon:'locations/playground', labelSize:14, iconSize:60},
+    {id:'park',        name:"The Park",               px:0.236268, py:0.679964, icon:'locations/park',   labelSize:14, iconSize:58},
+    {id:'creek',       name:"The Creek",              px:0.296201, py:0.188009, icon:'locations/creek',  labelSize:14, iconSize:58},
+    {id:'beach',       name:"The Beach",              px:0.779921, py:0.214678, icon:'locations/beach',  labelSize:21, iconSize:48},
+    {id:'pool',        name:"The Pool",               px:0.871444, py:0.634692, icon:'locations/pool',   labelSize:14, iconSize:48},
+    {id:'grandma',     name:"Nana's House",           px:0.789178, py:0.788877, icon:'locations/nana',   labelSize:16, iconSize:70},
+    {id:'school_east', name:"Bluey's School",         px:0.826902, py:0.424865, icon:'locations/school', labelSize:14, iconSize:64},
+    {id:'school_west', name:"Bingo's School",         px:0.134207, py:0.272034, icon:'locations/school', labelSize:14, iconSize:52},
+    {id:'big_peanut',  name:"The Big Peanut",         px:0.863551, py:0.083112, icon:'locations/museum', labelSize:14, iconSize:48}
+  ];
+  function placeXY(p){ p.x = Math.floor(p.px * MAP_W); p.y = Math.floor(p.py * MAP_H); }
+
+  const LEVEL_ORDER = ['school_west','family_home','park','playground','creek','beach','pool','grandma','school_east','big_peanut'];
+
+  // ---------- Level defs ----------
+  function slugifyName(n){ return n.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,''); }
+  const levelDefs = {
+    school_west: {
+      name: "Bingo's School",
+      mapBase: 'levels/school_west',
+      size: { w: BASE_LEVEL_W, h: BASE_LEVEL_H },
+      roster: ['Bingo','Bluey','Calypso','Chloe','Coco','Judo','Mackenzie','Rusty','Snickers']
+        .map(n => ({ id: slugifyName(n), name: n, img: `characters/school_west/${slugifyName(n)}` }))
+    }
+  };
+
+  // ---------- Sticker roster ----------
+  const stickerRoster = (() => {
+    const map = new Map();
+    [{ id:"bluey", name:"Bluey", img:"characters/bluey" },
+     { id:"bingo", name:"Bingo", img:"characters/bingo" }].forEach(r => map.set(r.id, r));
+    Object.values(levelDefs).forEach(def => (def.roster||[]).forEach(r => {
+      const id = (r.id||"").toLowerCase();
+      if (!map.has(id)) map.set(id, { id, name:r.name, img:r.img });
+    }));
+    return Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name));
+  })();
+
+  // ---------- Save / Load ----------
+  function loadSave(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.profile) app.profile = data.profile;
+      if (Array.isArray(data.collected)) app.collected = new Set(data.collected.map(x=>(x||"").toLowerCase()));
+      if (Array.isArray(data.visitedPlaces)) app.visitedPlaces = new Set(data.visitedPlaces);
+      if (data.lastPlace) app.lastPlace = data.lastPlace;
+      if (data.progress) app.progress = data.progress;
+      if (typeof data.currentLevelIdx === 'number') app.currentLevelIdx = data.currentLevelIdx;
+    }catch(e){}
+  }
+  function writeSave(){
+    try{
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        profile: app.profile,
+        collected: Array.from(app.collected),
+        visitedPlaces: Array.from(app.visitedPlaces),
+        lastPlace: app.lastPlace,
+        progress: app.progress,
+        currentLevelIdx: app.currentLevelIdx
+      }));
+    }catch(e){}
+  }
+  function ensureProgress(){
+    if (!app.progress) app.progress = {};
+    LEVEL_ORDER.forEach((id, idx)=>{
+      if (!app.progress[id]) app.progress[id] = { unlocked: idx===0, completed: false };
+    });
+    let firstPlayable = 0;
+    for (let i=0;i<LEVEL_ORDER.length;i++){
+      const s = app.progress[LEVEL_ORDER[i]];
+      if (s.unlocked && !s.completed){ firstPlayable = i; break; }
+    }
+    app.currentLevelIdx = firstPlayable;
+  }
+  loadSave(); ensureProgress();
+
+  // ---------- UI ----------
+  const stateBadge = document.getElementById('stateBadge');
+  const zoneBadge  = document.getElementById('zoneBadge');
+  const toast = document.getElementById('toast');
+  function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1600); }
+  function setState(s){ app.state=s; stateBadge.textContent=s; document.getElementById('menuPanel').style.display = (s===STATES.MENU?'flex':'none'); }
+
+  const menuPanel = document.getElementById('menuPanel');
+  function selectTab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+    document.getElementById('menuPlay').style.display     = name==='play'?'block':'none';
+    document.getElementById('menuStickers').style.display = name==='stickers'?'block':'none';
+    document.getElementById('menuProfile').style.display  = name==='profile'?'block':'none';
+    if (name==='stickers') renderStickerGrid();
+    if (name==='profile'){ profName.value = app.profile.name; profColor.value = app.profile.color; }
+  }
+  menuPanel.addEventListener('click', (e)=>{ if (e.target.classList.contains('tab')) selectTab(e.target.dataset.tab); });
+
+  function getPlaceById(id){ return places.find(p=>p.id===id); }
+  function currentPlayableId(){
+    for (let i=0;i<LEVEL_ORDER.length;i++){
+      const id = LEVEL_ORDER[i];
+      const s = app.progress[id];
+      if (s && s.unlocked && !s.completed) return id;
+    }
+    return LEVEL_ORDER[LEVEL_ORDER.length-1];
+  }
+  function unlockNext(afterId){
+    const idx = LEVEL_ORDER.indexOf(afterId);
+    for (let j=idx+1;j<LEVEL_ORDER.length;j++){
+      const id = LEVEL_ORDER[j];
+      const st = app.progress[id];
+      if (st && !st.unlocked){
+        st.unlocked = true;
+        app.currentLevelIdx = j;
+        writeSave();
+        return id;
+      }
+    }
+    return null;
+  }
+  function isLevelComplete(placeId){
+    const def = levelDefs[placeId];
+    if (!def || !def.roster || !def.roster.length) return false;
+    return def.roster.every(r => app.collected.has((r.id||'').toLowerCase()));
+  }
+  function onLevelCompleted(placeId){
+    if (!app.progress[placeId] || app.progress[placeId].completed) return;
+    app.progress[placeId].completed = true;
+    const completedName = levelDefs[placeId]?.name || getPlaceById(placeId)?.name || placeId;
+    const nextId = unlockNext(placeId);
+    const nextName = nextId ? (levelDefs[nextId]?.name || getPlaceById(nextId)?.name || nextId) : null;
+    writeSave();
+    showToast(`✔ ${completedName} complete!` + (nextName ? ` Next: ${nextName}` : ''));
+    setTimeout(()=>{ setState(STATES.MAP); if (nextId) enterLevel(nextId); }, 900);
+  }
+
+  document.getElementById('btnMenu').onclick     = ()=>{ selectTab('play'); setState(STATES.MENU); };
+  document.getElementById('btnMap').onclick      = ()=> setState(STATES.MAP);
+  document.getElementById('btnStickers').onclick = ()=>{ selectTab('stickers'); setState(STATES.MENU); };
+  document.getElementById('btnProfile').onclick  = ()=>{ selectTab('profile'); setState(STATES.MENU); };
+  document.getElementById('closeMenu').onclick   = ()=> setState(STATES.MAP);
+  document.getElementById('startGame').onclick   = ()=>{ ensureProgress(); const id=currentPlayableId(); setState(STATES.MAP); setTimeout(()=>enterLevel(id), 100); };
+  document.getElementById('resetProgress').onclick = ()=>{
+    if (!confirm("Reset stickers & level progression?")) return;
+    app.collected.clear(); app.visitedPlaces.clear(); app.lastPlace=null;
+    app.progress = null; app.currentLevelIdx = 0; ensureProgress();
+    writeSave(); renderStickerGrid(); showToast("Progress reset");
+  };
+  const profName = document.getElementById('profName');
+  const profColor= document.getElementById('profColor');
+  document.getElementById('saveProfile').onclick = ()=>{ app.profile.name = profName.value.trim()||"Player"; app.profile.color = profColor.value||"#2d7cff"; writeSave(); showToast("Profile saved"); };
+
+  // ---------- Sticker image resolution ----------
+  function stickerCandidatesFor(id, fallbackImgPath){
+    return [ `stickers/${id}`, fallbackImgPath || '', `characters/${id}`, `characters/school_west/${id}` ].filter(Boolean);
+  }
+  function createPlaceholderDataURL(name){
+    const initials = (name||'?').split(/\s+/).map(s=>s[0]||'').join('').slice(0,2).toUpperCase();
+    const svg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144'><rect width='100%' height='100%' rx='16' fill='#eef3ff'/><text x='50%' y='56%' text-anchor='middle' font-family='system-ui,Arial' font-weight='800' font-size='48' fill='#1d2b48'>${initials}</text></svg>`);
+    return `data:image/svg+xml;charset=utf-8,${svg}`;
+  }
+  function setStickerImg(imgEl, id, name, fallbackImgPath){
+    const bases = stickerCandidatesFor(id, fallbackImgPath);
+    const srcs = bases.flatMap(base => buildSrcs(base));
+    let i = 0;
+    const tryNext = () => { if (i >= srcs.length){ imgEl.src = createPlaceholderDataURL(name); return; } const src = srcs[i++]; imgEl.onerror = tryNext; imgEl.onload = null; imgEl.src = src; };
+    tryNext();
+  }
+
+  // ---------- Sticker book (with HOVER SFX) ----------
+  const hoverSfxCooldown = new Map(); // id -> last time played
+  function canPlayHover(id, ms=800){
+    const now = performance.now();
+    const last = hoverSfxCooldown.get(id) || 0;
+    if (now - last < ms) return false;
+    hoverSfxCooldown.set(id, now);
+    return true;
+  }
+  function attachStickerHoverSfx(el, charId){
+    // Hover, focus (keyboard), and touch all trigger — only for collected
+    const handler = ()=>{ if (canPlayHover(charId)) playStickerHoverSFX(charId); };
+    el.addEventListener('mouseenter', handler);
+    el.addEventListener('focus', handler);
+    el.addEventListener('touchstart', handler, {passive:true});
+    el.addEventListener('click', handler); // fallback if autoplay policies are strict
+  }
+
+  function renderStickerGrid(){
+    const grid = document.getElementById('stickerGrid');
+    grid.innerHTML = "";
+    for (const r of stickerRoster){
+      const id = r.id.toLowerCase();
+      const got = app.collected.has(id);
+      const div = document.createElement('div'); div.className='sticker '+(got?'':'locked');
+
+      const face = document.createElement('img'); face.className='face'; face.alt=r.name;
+      setStickerImg(face, id, r.name, r.img);
+
+      const label = document.createElement('div'); label.textContent=r.name;
+
+      div.appendChild(face); div.appendChild(label); grid.appendChild(div);
+
+      if (got){
+        // make it focusable for keyboard users
+        div.tabIndex = 0;
+        attachStickerHoverSfx(div, id);
+        // optional: little tooltip
+        div.title = 'Hover/tap to hear ' + r.name;
+      }
+    }
+  }
+  renderStickerGrid(); setState(STATES.MENU);
+
+  // ---------- Random helpers ----------
+  function seededRandom(seed){ let h=2166136261; for (let i=0;i<seed.length;i++){ h^=seed.charCodeAt(i); h=Math.imul(h,16777619);} return (h>>>0)/2**32; }
+  function randRange(seed,a,b){ return a + seededRandom(seed)*(b-a); }
+  function shuffle(arr){ for (let i=arr.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+  // ---------- Dev mode ----------
+  const DEV_SAVE_KEY = "puptown_dev_places_v2";
+  const LEVEL_DEV_KEY = (id)=>`puptown_dev_chars_${id}`;
+  const LEVEL_IMG_KEY = (id)=>`level_img_${id}`;
+  const dev = { enabled:false, dragging:null, hover:null, showGrid:false, draggingChar:null, dragOff:{x:0,y:0} };
+  function toggleDev(on){ dev.enabled = on; devBar.style.display = on ? 'flex' : 'none'; devTag.style.display = on ? 'block' : 'none'; showToast(on ? "Dev mode ON (drag characters in Level)" : "Dev mode OFF"); }
+  if (location.search.includes('dev=1')) toggleDev(true);
+
+  function applyPlacePercents(){ places.forEach(placeXY); }
+  async function loadExternalPlaces(){
+    try{
+      const res = await fetch('places.json', {cache:'no-store'});
+      if (!res.ok) return;
+      const arr = await res.json();
+      if (Array.isArray(arr)){
+        for (const o of arr){
+          const p = places.find(x=>x.id===o.id);
+          if (!p) continue;
+          if (typeof o.px==='number') p.px = o.px;
+          if (typeof o.py==='number') p.py = o.py;
+          if (typeof o.labelSize==='number') p.labelSize = o.labelSize;
+          if (typeof o.iconSize==='number')  p.iconSize  = o.iconSize;
+        }
+      }
+      showToast('Loaded places.json');
+    }catch(e){}
+  }
+  (async function initOverrides(){
+    await loadExternalPlaces();
+    const raw = localStorage.getItem(DEV_SAVE_KEY);
+    if (raw){
+      try{
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)){
+          for (const o of arr){
+            const p = places.find(x=>x.id===o.id);
+            if (!p) continue;
+            if (typeof o.px==='number') p.px = o.px;
+            if (typeof o.py==='number') p.py = o.py;
+            if (typeof o.labelSize==='number') p.labelSize = o.labelSize;
+            if (typeof o.iconSize==='number')  p.iconSize  = o.iconSize;
+          }
+        }
+      }catch(e){}
+    }
+    applyPlacePercents();
+  })();
+
+  const devBar = document.getElementById('devBar');
+  const devInfo = document.getElementById('devInfo');
+  const devTag  = document.getElementById('devTag');
+  document.getElementById('devCopy').onclick     = ()=>{ const txt=JSON.stringify(getAllDevData(),null,2); navigator.clipboard?.writeText(txt).then(()=>showToast("Copied dev JSON")); };
+  document.getElementById('devSave').onclick     = ()=>saveAllDev();
+  document.getElementById('devDownload').onclick = ()=>downloadAllDev();
+  document.getElementById('devReset').onclick    = ()=>{ localStorage.removeItem(DEV_SAVE_KEY); Object.keys(levelDefs).forEach(id=>localStorage.removeItem(LEVEL_DEV_KEY(id))); showToast("Dev data reset (reload level)");};
+  document.getElementById('devExit').onclick     = ()=>toggleDev(false);
+  function getAllDevData() {
+    let placesData = null; try { placesData = JSON.parse(localStorage.getItem(DEV_SAVE_KEY) || 'null'); } catch {}
+    const levels = {}; Object.keys(levelDefs).forEach(id=>{ try { levels[id] = JSON.parse(localStorage.getItem(LEVEL_DEV_KEY(id)) || 'null'); } catch {} });
+    return { places: placesData, levels };
+  }
+  function saveAllDev() {
+    if (app.state === STATES.LEVEL && level) {
+      const arr = level.items.map(it => ({ id: it.id, name: it.name, px: +(it.x/LEVEL_W).toFixed(6), py: +(it.y/LEVEL_H).toFixed(6), r: it.r }));
+      localStorage.setItem(LEVEL_DEV_KEY(level.id), JSON.stringify(arr));
+      showToast("Dev layout saved");
+    } else showToast("Open a level to save its layout");
+  }
+  function downloadAllDev() {
+    const txt = JSON.stringify(getAllDevData(), null, 2);
+    const blob = new Blob([txt], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'puptown-dev.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    showToast("Downloaded dev JSON");
+  }
+
+  // ---------- Level ----------
+  let level = null;
+
+  function makeObstacles(placeId){
+    const obs=[]; for (let i=0;i<18;i++){
+      const sx=seededRandom(placeId+'ox'+i), sy=seededRandom(placeId+'oy'+i);
+      const x=Math.floor(80+sx*(LEVEL_W-220)), y=Math.floor(80+sy*(LEVEL_H-220));
+      obs.push({x,y,w:120,h:70,type:(i%3===0?'house':(i%3===1?'tree':'rock'))});
+    } return obs;
+  }
+  function loadDevCharLayout(placeId){
+    try{ const raw = localStorage.getItem(LEVEL_DEV_KEY(placeId)); if (!raw) return null; const arr = JSON.parse(raw); return Array.isArray(arr) ? arr : null; }catch(e){ return null; }
+  }
+
+  // ---------- NPC wandering ----------
+  function randomPoint(margin=72){ return { x: Math.floor(margin + Math.random()*(LEVEL_W - 2*margin)), y: Math.floor(margin + Math.random()*(LEVEL_H - 2*margin)) }; }
+  function chooseNPCTarget(it){
+    if (it.frozen) return;
+    let p = randomPoint(72);
+    const dx = p.x - level.player.x, dy = p.y - level.player.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 180 && Math.random() < 0.3){
+      p.x = level.player.x - dx; p.y = level.player.y - dy;
+      p.x = clamp(p.x, it.r, LEVEL_W - it.r);
+      p.y = clamp(p.y, it.r, LEVEL_H - it.r);
+    }
+    it.tx = p.x; it.ty = p.y;
+    it.retime = performance.now() + 3000 + Math.random()*3000;
+    it.speed = 1.6 + Math.random()*1.4;
+  }
+  function updateNPCs(dt){
+    if (!level) return;
+    const items = level.items;
+    const now = performance.now();
+
+    for (const it of items){
+      if (app.collected.has(it.id) || it.frozen) continue;
+      if (!it.tx || now > it.retime) chooseNPCTarget(it);
+      const dx = it.tx - it.x, dy = it.ty - it.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 10){ chooseNPCTarget(it); continue; }
+      const step = Math.min(dist, it.speed);
+      const nx = it.x + (dx/dist) * step;
+      const ny = it.y + (dy/dist) * step;
+      const fixed = resolveCollisions(it.x, it.y, nx, ny, it.r, level.obstacles, LEVEL_W, LEVEL_H);
+      if (Math.hypot(fixed.x - it.x, fixed.y - it.y) < 0.2) chooseNPCTarget(it);
+      else { it.x = fixed.x; it.y = fixed.y; }
+    }
+
+    // separation
+    for (let i=0;i<items.length;i++){
+      const a = items[i]; if (app.collected.has(a.id) || a.frozen) continue;
+      for (let j=i+1;j<items.length;j++){
+        const b = items[j]; if (app.collected.has(b.id) || b.frozen) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        const min = a.r + b.r + 6;
+        if (d > 0 && d < min){
+          const push = (min - d) * 0.5;
+          const ux = dx/d, uy = dy/d;
+          a.x -= ux*push; a.y -= uy*push;
+          b.x += ux*push; b.y += uy*push;
+          a.x = clamp(a.x, a.r, LEVEL_W - a.r); a.y = clamp(a.y, a.r, LEVEL_H - a.r);
+          b.x = clamp(b.x, b.r, LEVEL_W - b.r); b.y = clamp(b.y, b.r, LEVEL_H - b.r);
+        }
+      }
+    }
+  }
+
+  async function enterLevel(placeId){
+    const place = places.find(p=>p.id===placeId); if (!place) return;
+    const def = levelDefs[placeId] || null;
+
+    LEVEL_W = def?.size?.w || BASE_LEVEL_W;
+    LEVEL_H = def?.size?.h || BASE_LEVEL_H;
+
+    if (def?.mapBase){ await loadImageWithFallback(LEVEL_IMG_KEY(placeId), def.mapBase); } else { images[LEVEL_IMG_KEY(placeId)] = null; }
+
+    app.lastPlace=placeId; app.visitedPlaces.add(placeId); writeSave();
+
+    let items = [];
+    if (def?.roster?.length){
+      const saved = loadDevCharLayout(placeId);
+      items = def.roster.map(r=>{
+        const s = saved?.find(x=>x.id===r.id);
+        const x = s ? Math.floor((s.px||0.5) * LEVEL_W) : Math.floor(randRange(r.id+'x', 140, LEVEL_W-140));
+        const y = s ? Math.floor((s.py||0.5) * LEVEL_H) : Math.floor(randRange(r.id+'y', 140, LEVEL_H-140));
+        return { id:r.id.toLowerCase(), name:r.name, x, y, r:(s?.r||28), imgKey:'charlvl_'+placeId+'_'+r.id, base:r.img, tx:0, ty:0, speed:1.8, retime:0, frozen:false };
+      });
+      await Promise.all(items.map(it=>loadImageWithFallback(it.imgKey, it.base)));
+    }
+
+    const player = { x:LEVEL_W/2, y:LEVEL_H/2, r:18, vx:0, vy:0 };
+
+    level = { id: placeId, place, mapImg: images[LEVEL_IMG_KEY(placeId)], player, items, followers: [], obstacles: makeObstacles(placeId) };
+
+    for (const it of level.items) chooseNPCTarget(it);
+
+    const vw = canvas.width/DPR, vh = canvas.height/DPR;
+    camera.scale = computeLevelScale(vw, vh);
+    const viewW = vw/camera.scale, viewH = vh/camera.scale;
+    camera.x = clamp(player.x - viewW/2, 0, LEVEL_W - viewW);
+    camera.y = clamp(player.y - viewH/2, 0, LEVEL_H - viewH);
+
+    setState(STATES.LEVEL);
+    if (!def?.roster?.length) showToast("Explore — no stickers here yet");
+  }
+
+  // ---------- Effects ----------
+  const effects = [];
+  function spawnCollectEffect(x,y){
+    effects.push({kind:'ring', x, y, r:0, max:90, life:520});
+    const n=18;
+    for (let i=0;i<n;i++){
+      const a = (i/n)*Math.PI*2 + Math.random()*0.4;
+      const s = 1.6 + Math.random()*1.2;
+      effects.push({ kind:'spark', x, y, vx: Math.cos(a)*s*2.2, vy: Math.sin(a)*s*2.2, life: 500 + Math.random()*300 });
+    }
+  }
+  function updateEffects(dt){
+    for (const e of effects){
+      e.life -= dt;
+      if (e.kind==='ring'){ e.r += dt*0.18; }
+      else { e.x += e.vx*dt*0.06; e.y += e.vy*dt*0.06; e.vx *= 0.99; e.vy *= 0.99; }
+    }
+    for (let i=effects.length-1;i>=0;i--) if (effects[i].life<=0) effects.splice(i,1);
+  }
+  function drawEffects(){
+    for (const e of effects){
+      if (e.kind==='ring'){
+        const t = Math.max(0, Math.min(1, e.life/520));
+        ctx.save(); ctx.globalAlpha = t*0.8;
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+        ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
+      } else {
+        const t = Math.max(0, Math.min(1, e.life/800));
+        ctx.save(); ctx.globalAlpha = t; ctx.fillStyle = '#fffacd';
+        ctx.beginPath(); ctx.arc(e.x, e.y, 2.6, 0, Math.PI*2); ctx.fill(); ctx.restore();
+      }
+    }
+  }
+
+  // ---------- Followers ----------
+  function startFollowerIfSpecial(item){
+    const id = (item.id||'').toLowerCase();
+    if (id!=='bluey' && id!=='bingo') return;
+    const follower = { id, name:item.name, x:item.x, y:item.y, r:16, imgKey: item.imgKey, vx:0, vy:0 };
+    level.followers = [follower];
+    showToast(`${item.name} is following you!`);
+  }
+  function updateFollowers(dt){
+    if (!level || !level.followers) return;
+    const targetLead = 44, maxStep = 3.0;
+    for (const f of level.followers){
+      const vx = level.player.vx, vy = level.player.vy;
+      const spd = Math.hypot(vx, vy);
+      let tx = spd>0.1 ? level.player.x - (vx/spd)*targetLead : level.player.x - 24;
+      let ty = spd>0.1 ? level.player.y - (vy/spd)*targetLead : level.player.y + 12;
+      const dx = tx - f.x, dy = ty - f.y, dist = Math.hypot(dx, dy);
+      if (dist > 0.1){
+        const step = Math.min(dist, maxStep);
+        const nx = f.x + dx/dist * step, ny = f.y + dy/dist * step;
+        const fixed = resolveCollisions(f.x, f.y, nx, ny, f.r, level.obstacles, LEVEL_W, LEVEL_H);
+        f.x = fixed.x; f.y = fixed.y;
+      }
+    }
+  }
+
+  // ---------- Music ----------
+  const MUSIC = { count: 13, path: 'audio', el: new Audio(), order: [], idx: 0, started: false, vol: 0.4, fadeTimer: 0 };
+  MUSIC.el.preload = 'none'; MUSIC.el.loop = false; MUSIC.el.playsInline = true; MUSIC.el.controls = false; MUSIC.el.muted = false; MUSIC.el.volume = 0.0;
+  function buildTrackList(){ return Array.from({length: MUSIC.count}, (_,i)=> `${MUSIC.path}/${i+1}.mp3`); }
+  function preparePlaylist(){ MUSIC.order = shuffle(buildTrackList()); MUSIC.idx = 0; }
+  function nextIndex(){ MUSIC.idx++; if (MUSIC.idx >= MUSIC.order.length) preparePlaylist(); }
+  function fadeTo(target, ms){ clearInterval(MUSIC.fadeTimer); const a = MUSIC.el, start = a.volume, steps = Math.max(1, Math.floor(ms/50)); let i = 0;
+    MUSIC.fadeTimer = setInterval(()=>{ i++; a.volume = start + (target-start)*(i/steps); if (i>=steps){ a.volume = target; clearInterval(MUSIC.fadeTimer); } },50); }
+  function playCurrent(){ if (!MUSIC.order.length) preparePlaylist(); const src = MUSIC.order[MUSIC.idx]; MUSIC.el.src=src; MUSIC.el.currentTime=0; MUSIC.el.play().then(()=>fadeTo(MUSIC.vol,1000)).catch(()=>{}); }
+  function playNext(){ nextIndex(); playCurrent(); }
+  MUSIC.el.addEventListener('ended', playNext); MUSIC.el.addEventListener('error', playNext);
+  function startMusicFromUserGesture(){ if (MUSIC.started) return; MUSIC.started = true; if (!MUSIC.order.length) preparePlaylist(); playCurrent(); }
+  ;['startGame','btnMap','btnMenu','btnStickers','btnProfile'].forEach(id=>{ const el=document.getElementById(id); if (el) el.addEventListener('click', startMusicFromUserGesture, {passive:true}); });
+  document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible' && MUSIC.started){ if (MUSIC.el.paused) MUSIC.el.play().catch(()=>{}); } });
+
+  // ---------- SFX ----------
+  const SFX = { vol: 0.9,
+    playList(paths){ if (!paths.length) return; let i=0; const a=new Audio(); a.preload='none'; a.playsInline=true; a.volume=SFX.vol;
+      function tryNext(){ if (i>=paths.length) return; a.src=paths[i++]; const p=a.play(); if (p && p.then) p.catch(()=>{ tryNext(); }); }
+      a.addEventListener('error', tryNext); tryNext(); }
+  };
+  function hasFollower(id){ return !!(level && level.followers && level.followers.some(f => (f.id||'').toLowerCase() === String(id).toLowerCase())); }
+  function playCollectSFX(characterId){
+    const id = (characterId||'').toLowerCase();
+    const candidates = [];
+    if (id==='bingo' && hasFollower('bluey')) candidates.push('audio/bluey/bingocomeon.mp3');
+    const nums=[1,2,3]; for (let i=nums.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [nums[i],nums[j]]=[nums[j],nums[i]]; }
+    nums.forEach(n=>candidates.push(`audio/${id}/${n}.mp3`));
+    SFX.playList(candidates);
+  }
+  // NEW: Sticker hover SFX (random 1–3 for that character)
+  function playStickerHoverSFX(characterId){
+    const id = (characterId||'').toLowerCase();
+    const nums=[1,2,3]; for (let i=nums.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [nums[i],nums[j]]=[nums[j],nums[i]]; }
+    const candidates = nums.map(n => `audio/${id}/${n}.mp3`);
+    SFX.playList(candidates);
+  }
+
+  // ---------- Quiz (Calypso) ----------
+  const quizPanel   = document.getElementById('quizPanel');
+  const quizChoices = document.getElementById('quizChoices');
+  const quizClose   = document.getElementById('quizClose');
+  let activeQuiz = null;
+  let inputLocked = false;
+
+  function openCalypsoQuiz(item){
+    item.frozen = true;
+    activeQuiz = { item, correct: '4' };
+    inputLocked = true;
+
+    const options = shuffle(['4','3','5','22']);
+    quizChoices.innerHTML = '';
+    options.forEach(opt => {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.textContent = opt;
+      b.onclick = ()=> handleQuizAnswer(opt);
+      quizChoices.appendChild(b);
+    });
+
+    quizPanel.style.display = 'flex';
+  }
+  function handleQuizAnswer(value){
+    if (!activeQuiz) return;
+    if (String(value) === activeQuiz.correct){
+      closeQuiz(false);
+      captureItem(activeQuiz.item);
+      activeQuiz = null;
+    } else {
+      showToast("Not quite — try again!");
+      const opts = Array.from(quizChoices.children).map(b=>b.textContent);
+      quizChoices.innerHTML='';
+      shuffle(opts).forEach(opt=>{
+        const b=document.createElement('button'); b.className='btn'; b.textContent=opt; b.onclick=()=>handleQuizAnswer(opt); quizChoices.appendChild(b);
+      });
+    }
+  }
+  function closeQuiz(unfreeze=true){
+    if (activeQuiz && unfreeze){ activeQuiz.item.frozen = false; }
+    quizPanel.style.display = 'none';
+    inputLocked = false;
+  }
+  quizClose.onclick = ()=>{ closeQuiz(true); activeQuiz=null; };
+
+  // ---------- Map click -> enter level (with locks) ----------
+  let mapView = { scale:1, ox:0, oy:0 };
+  function mapPointerToPlace(mx,my){
+    for (const p of places){
+      const R = (p.iconSize || 48) * 0.55;
+      const dx = mx - p.x, dy = my - p.y;
+      if (dx*dx + dy*dy < R*R) return p;
+    }
+    return null;
+  }
+  canvas.addEventListener('click',(e)=>{
+    if (app.state!==STATES.MAP) return;
+    const rect=canvas.getBoundingClientRect();
+    const cx=(e.clientX-rect.left)*(canvas.width/rect.width)/DPR;
+    const cy=(e.clientY-rect.top) *(canvas.height/rect.height)/DPR;
+    const mx=(cx - mapView.ox)/mapView.scale;
+    const my=(cy - mapView.oy)/mapView.scale;
+    const p=mapPointerToPlace(mx,my);
+    if (!p) return;
+    const st = app.progress[p.id] || {unlocked:false};
+    if (!st.unlocked){ showToast("Locked — finish the current location first"); return; }
+    enterLevel(p.id);
+  });
+
+  // ---------- Drawing helpers ----------
+  function roundRect(x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+
+  function drawMenu(vw,vh){
+    const bg = images['menu_bg'];
+    if (bg) ctx.drawImage(bg, 0, 0, vw, vh); else { ctx.fillStyle='#cfeaff'; ctx.fillRect(0,0,vw,vh); }
+    ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(0,0,vw,60);
+    ctx.fillStyle='#fff'; ctx.font='900 24px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.fillText('PupTown Adventure', 16, 40);
+  }
+
+  function drawWorldMap(){
+    const world = images['world_map'];
+    if (world) ctx.drawImage(world, 0, 0, MAP_W, MAP_H);
+    else {
+      ctx.fillStyle='#dff8d6'; ctx.fillRect(0,0,MAP_W,MAP_H);
+      for (let y=0;y<MAP_H;y+=80){ for (let x=0;x<MAP_W;x+=80){ ctx.fillStyle=((x/80+y/80)%2===0)?'#c7f0bf':'#bdeab4'; ctx.fillRect(x,y,80,80);} }
+    }
+
+    for (const p of places){
+      const status = app.progress[p.id] || {unlocked:false, completed:false};
+      const px=p.x, py=p.y; const iconSize = p.iconSize || 48;
+
+      ctx.save();
+      ctx.globalAlpha = status.unlocked ? 1 : 0.35;
+
+      ctx.fillStyle='rgba(0,0,0,.18)';
+      ctx.beginPath(); ctx.ellipse(px, py + iconSize*0.35, iconSize*0.38, iconSize*0.16, 0, 0, Math.PI*2); ctx.fill();
+
+      const icon = images['place_'+p.id];
+      if (icon) ctx.drawImage(icon, px - iconSize/2, py - iconSize/2, iconSize, iconSize);
+      else { ctx.fillStyle='#ff7b4d'; ctx.beginPath(); ctx.arc(px, py, Math.max(14, iconSize*0.3), 0, Math.PI*2); ctx.fill(); }
+
+      if (!status.unlocked){
+        ctx.globalAlpha = 1; ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(px+iconSize*0.34, py-iconSize*0.34, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.font='900 12px system-ui'; ctx.fillText('🔒', px+iconSize*0.27, py-iconSize*0.29+4);
+      } else if (status.completed){
+        ctx.globalAlpha = 1; ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.arc(px+iconSize*0.34, py-iconSize*0.34, 11, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.lineWidth=3; ctx.beginPath();
+        ctx.moveTo(px+iconSize*0.27-6, py-iconSize*0.34);
+        ctx.lineTo(px+iconSize*0.27-1, py-iconSize*0.34+6);
+        ctx.lineTo(px+iconSize*0.27+8, py-iconSize*0.34-6);
+        ctx.strokeStyle='#fff'; ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(12,12,260,28);
+    ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+    ctx.fillText('Tap an unlocked place', 20, 31);
+  }
+
+  function drawLevel(){
+    if (level.mapImg){ ctx.drawImage(level.mapImg, 0, 0, LEVEL_W, LEVEL_H); }
+    else {
+      ctx.fillStyle='#dff8d6'; ctx.fillRect(0,0,LEVEL_W,LEVEL_H);
+      for (let y=0;y<LEVEL_H;y+=80){ for (let x=0;x<LEVEL_W;x+=80){ ctx.fillStyle=((x/80+y/80)%2===0)?'#c7f0bf':'#bdeab4'; ctx.fillRect(x,y,80,80); } }
+      for (const o of level.obstacles){
+        if (o.type==='tree'){ ctx.fillStyle='#8c5a32'; ctx.fillRect(o.x+46,o.y+40,12,30); ctx.beginPath(); ctx.arc(o.x+52,o.y+36,30,0,7); ctx.fillStyle='#4bbd54'; ctx.fill(); }
+        else if (o.type==='house'){ ctx.fillStyle='#ffe8b6'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillStyle='#d07a4a'; ctx.beginPath(); ctx.moveTo(o.x-8,o.y); ctx.lineTo(o.x+o.w/2,o.y-26); ctx.lineTo(o.x+o.w+8,o.y); ctx.closePath(); ctx.fill(); ctx.fillStyle='#9bd1ff'; ctx.fillRect(o.x+18,o.y+18,24,20); ctx.fillStyle='#885533'; ctx.fillRect(o.x+o.w-30,o.y+24,18,28); }
+        else { ctx.fillStyle='#bfbfbf'; ctx.beginPath(); ctx.arc(o.x+60,o.y+35,28,0,7); ctx.fill(); }
+      }
+    }
+
+    // Characters
+    for (const it of level.items){
+      if (app.collected.has(it.id)) continue;
+      const im = images[it.imgKey], size=it.r*2;
+      if (im) ctx.drawImage(im, it.x-it.r, it.y-it.r, size, size);
+      else { ctx.fillStyle='#ffc'; ctx.beginPath(); ctx.arc(it.x,it.y,it.r,0,7); ctx.fill(); }
+      ctx.fillStyle='rgba(0,0,0,.5)'; ctx.font='700 12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+      ctx.fillText(it.name, it.x-ctx.measureText(it.name).width/2, it.y+it.r+14);
+    }
+
+    // Followers
+    if (level.followers && level.followers.length){
+      for (const f of level.followers){
+        ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(f.x,f.y+16,16,7,0,0,7); ctx.fill();
+        const im = images[f.imgKey]; const size = f.r*2;
+        if (im) ctx.drawImage(im, f.x - size/2, f.y - size/2, size, size);
+        else { ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fillStyle='#ffd'; ctx.fill(); }
+      }
+    }
+
+    // Player
+    const p=level.player;
+    ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(p.x,p.y+18,18,8,0,0,7); ctx.fill();
+    const avatar = images['player_avatar']; const AVATAR_SCALE=2;
+    if (avatar){
+      const size = p.r * AVATAR_SCALE;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r+2,0,Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.stroke();
+      ctx.drawImage(avatar, p.x - size/2, p.y - size/2, size, size);
+    } else {
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fillStyle=app.profile.color; ctx.fill();
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(p.x-5,p.y-2,3,0,7); ctx.arc(p.x+5,p.y-2,3,0,7); ctx.fill();
+      ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(p.x-5,p.y-2,1.5,0,7); ctx.arc(p.x+5,p.y-2,1.5,0,7); ctx.fill();
+    }
+
+    // Effects
+    drawEffects();
+
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(12,12,360,28);
+    ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+    const completeText = isLevelComplete(level.id) ? ' (Complete)' : '';
+    ctx.fillText((level.place.name || 'Level') + completeText, 20, 31);
+  }
+
+  // ---------- Preload ----------
+  const preloadList = [
+    loadImageWithFallback('menu_bg',  ['images/menu-bg','menu-bg']),
+    loadImageWithFallback('world_map',['images/map','map']),
+    ...places.map(p => loadImageWithFallback('place_'+p.id, ['images/'+p.icon, p.icon])),
+    loadImageWithFallback('player_avatar', ['images/avatar/player'])
+  ];
+  Promise.all(preloadList).then(()=>{
+    const world = images['world_map'];
+    if (world && world.naturalWidth && world.naturalHeight){ MAP_W = world.naturalWidth; MAP_H = world.naturalHeight; }
+    places.forEach(placeXY);
+    requestAnimationFrame(tick);
+  });
+
+  // ---------- Main loop ----------
+  let last=performance.now();
+  function tick(t){
+    const dt=Math.min(32,t-last); last=t;
+    ctx.save(); ctx.scale(DPR,DPR);
+    const vw=canvas.width/DPR, vh=canvas.height/DPR;
+
+    if (app.state===STATES.MAP){
+      const scale = Math.min(vw/MAP_W, vh/MAP_H);
+      const oxW = (vw/scale - MAP_W) / 2;
+      const oyW = (vh/scale - MAP_H) / 2;
+
+      mapView.scale = scale; mapView.ox = oxW * scale; mapView.oy = oyW * scale;
+      ctx.scale(scale, scale); ctx.translate(oxW, oyW);
+      drawWorldMap(); zoneBadge.textContent="World Map";
+
+    } else if (app.state===STATES.LEVEL && level){
+      inputStep(level.player);
+      const nx=level.player.x+level.player.vx, ny=level.player.y+level.player.vy;
+      const fixed=resolveCollisions(level.player.x,level.player.y,nx,ny,level.player.r,level.obstacles,LEVEL_W,LEVEL_H);
+      level.player.x=fixed.x; level.player.y=fixed.y;
+
+      updateNPCs(dt);
+      updateFollowers(dt);
+
+      if (requestCollect){ tryCollect(); requestCollect=false; }
+
+      camera.scale = computeLevelScale(vw, vh);
+      const viewW = vw/camera.scale, viewH = vh/camera.scale;
+      const targetX = clamp(level.player.x - viewW/2, 0, LEVEL_W - viewW);
+      const targetY = clamp(level.player.y - viewH/2, 0, LEVEL_H - viewH);
+
+      if (dev.enabled){ camera.x = 0; camera.y = 0; }
+      else if (CAMERA_HARD_LOCK){ camera.x = Math.round(targetX); camera.y = Math.round(targetY); }
+      else { const SMOOTH = 0.15; camera.x = lerp(camera.x, targetX, SMOOTH); camera.y = lerp(camera.y, targetY, SMOOTH); }
+
+      ctx.scale(camera.scale, camera.scale);
+      ctx.translate(-camera.x, -camera.y);
+
+      updateEffects(dt);
+      drawLevel();
+
+      zoneBadge.textContent = level.place.name;
+
+    } else {
+      drawMenu(vw,vh);
+      zoneBadge.textContent = '—';
+    }
+
+    ctx.restore();
+    if ((t|0)%1200<17) writeSave();
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Input ----------
+  const keys=new Set();
+  addEventListener('keydown', e=>{
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+    keys.add(e.key.toLowerCase());
+    if (e.key==='m') setState(STATES.MAP);
+    if (e.key===' ') tryCollect();
+    if (e.key==='Escape'){ if (activeQuiz){ closeQuiz(true); activeQuiz=null; } else setState(STATES.MAP); }
+    if (e.shiftKey && (e.key==='D' || e.key==='d')) toggleDev(!dev.enabled);
+    startMusicFromUserGesture();
+  });
+  addEventListener('keyup', e=> keys.delete(e.key.toLowerCase()));
+
+  // Virtual stick
+  const stick = document.getElementById('stick'), nub=document.getElementById('nub');
+  let joy={active:false,sx:0,sy:0,dx:0,dy:0};
+  function stickPos(e){ const r=stick.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
+  function clampVec(v,max){ const m=Math.hypot(v.x,v.y); if (m>max){ v.x=v.x/m*max; v.y=v.y/m*max; } }
+  stick.addEventListener('touchstart', e=>{ joy.active=true; const p=stickPos(e); joy.sx=p.x; joy.sy=p.y; joy.dx=joy.dy=0; nub.style.transform=`translate(${p.x-36}px,${p.y-36}px)`; startMusicFromUserGesture(); }, {passive:false});
+  stick.addEventListener('touchmove', e=>{ const p=stickPos(e); joy.dx=p.x-joy.sx; joy.dy=p.y-joy.sy; clampVec(joy,56); nub.style.transform=`translate(${joy.sx+joy.dx-36}px,${joy.sy+joy.dy-36}px)`; }, {passive:false});
+  stick.addEventListener('touchend', ()=>{ joy.active=false; joy.dx=joy.dy=0; nub.style.transform=`translate(${stick.clientWidth/2-36}px,${stick.clientHeight/2-36}px)`; });
+  let requestCollect=false;
+  document.getElementById('btnCollect').addEventListener('touchstart', ()=>{ requestCollect=true; setTimeout(()=>requestCollect=false,120); }, {passive:true});
+  function inputStep(p){
+    if (inputLocked){ p.vx = 0; p.vy = 0; return; }
+    let dx=0,dy=0;
+    if (keys.has('arrowleft')||keys.has('a'))dx-=1;
+    if (keys.has('arrowright')||keys.has('d'))dx+=1;
+    if (keys.has('arrowup')||keys.has('w'))dy-=1;
+    if (keys.has('arrowdown')||keys.has('s'))dy+=1;
+    if (joy.active||joy.dx||joy.dy){ dx+=joy.dx/56; dy+=joy.dy/56; }
+    const mag=Math.hypot(dx,dy); if (mag>0){ dx/=mag; dy/=mag; }
+    p.vx=dx*3.2; p.vy=dy*3.2;
+  }
+
+  // ---------- Collisions & Collect ----------
+  function circleRectHit(rx,ry,rw,rh,cx,cy,cr){
+    const nx=Math.max(rx,Math.min(cx,rx+rw)), ny=Math.max(ry,Math.min(cy,ry+rh));
+    return ((cx-nx)**2 + (cy-ny)**2) <= cr**2;
+  }
+  function resolveCollisions(px,py,nx,ny,r, obstacles, maxW, maxH){
+    nx=Math.max(r,Math.min(maxW-r,nx)); ny=Math.max(r,Math.min(maxH-r,ny));
+    for (const o of obstacles){
+      if (circleRectHit(o.x,o.y,o.w,o.h,nx,ny,r)){
+        const left=Math.abs(nx-o.x), right=Math.abs(o.x+o.w-nx), top=Math.abs(ny-o.y), bottom=Math.abs(o.y+o.h-ny);
+        const m=Math.min(left,right,top,bottom);
+        if (m===left) nx=o.x-r; else if (m===right) nx=o.x+o.w+r; else if (m===top) ny=o.y-r; else ny=o.y+o.h+r;
+      }
+    }
+    return {x:nx,y:ny};
+  }
+
+  function captureItem(item){
+    const id = item.id.toLowerCase();
+    spawnCollectEffect(item.x, item.y);
+    app.collected.add(id);
+    writeSave();
+    renderStickerGrid();
+    playCollectSFX(id);
+    startFollowerIfSpecial(item);
+    showToast(`Sticker collected: ${item.name}!`);
+    if (isLevelComplete(level.id)) onLevelCompleted(level.id);
+  }
+
+  function tryCollect(){
+    if (app.state!==STATES.LEVEL || !level || activeQuiz) return false;
+    let best=null, bestD=1e9;
+    for (const it of level.items){
+      if (app.collected.has(it.id)) continue;
+      const d=Math.hypot(it.x-level.player.x, it.y-level.player.y);
+      if (d<bestD){ best=it; bestD=d; }
+    }
+    if (best && bestD<=64){
+      if (best.id === 'calypso'){
+        openCalypsoQuiz(best);
+        return true;
+      }
+      captureItem(best);
+      return true;
+    }
+    return false;
+  }
+
+  // ---------- DEV: drag characters ----------
+  function screenToWorld(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const cx = (clientX - rect.left) * (canvas.width/rect.width) / DPR;
+    const cy = (clientY - rect.top)  * (canvas.height/rect.height) / DPR;
+    const wx = cx / camera.scale + camera.x;
+    const wy = cy / camera.scale + camera.y;
+    return {x:wx,y:wy};
+  }
+  function pickCharacter(wx, wy){
+    if (!level) return null;
+    let best=null, bestD=1e9;
+    for (const it of level.items){
+      const d = Math.hypot(wx - it.x, wy - it.y);
+      if (d < it.r*1.6 && d < bestD){ best = it; bestD = d; }
+    }
+    return best;
+  }
+  function startDragChar(clientX, clientY){
+    if (!dev.enabled || app.state!==STATES.LEVEL || !level) return;
+    const {x:wx,y:wy} = screenToWorld(clientX, clientY);
+    const it = pickCharacter(wx, wy);
+    if (it){
+      dev.draggingChar = it;
+      dev.dragOff.x = wx - it.x;
+      dev.dragOff.y = wy - it.y;
+      devInfo.textContent = `DEV: dragging ${it.name}`;
+    }
+  }
+  function moveDragChar(clientX, clientY){
+    if (!dev.enabled || !dev.draggingChar || !level) return;
+    const {x:wx,y:wy} = screenToWorld(clientX, clientY);
+    const it = dev.draggingChar;
+    it.x = clamp(wx - dev.dragOff.x, it.r, LEVEL_W - it.r);
+    it.y = clamp(wy - dev.dragOff.y, it.r, LEVEL_H - it.r);
+  }
+  function endDragChar(){
+    if (!dev.enabled || !dev.draggingChar || !level) return;
+    const arr = level.items.map(it=>({ id: it.id, name: it.name, px: +(it.x/LEVEL_W).toFixed(6), py: +(it.y/LEVEL_H).toFixed(6), r: it.r }));
+    localStorage.setItem(LEVEL_DEV_KEY(level.id), JSON.stringify(arr));
+    showToast("Character layout saved");
+    dev.draggingChar = null;
+    devInfo.textContent = 'DEV: —';
+  }
+
+  canvas.addEventListener('mousedown', (e)=>{
+    if (app.state===STATES.LEVEL && dev.enabled) startDragChar(e.clientX, e.clientY);
+    startMusicFromUserGesture();
+  });
+  window.addEventListener('mousemove', (e)=>{
+    if (app.state===STATES.LEVEL && dev.enabled) moveDragChar(e.clientX, e.clientY);
+  });
+  window.addEventListener('mouseup', ()=>{
+    if (app.state===STATES.LEVEL && dev.enabled) endDragChar();
+  });
+  canvas.addEventListener('touchstart', (e)=>{
+    if (!(app.state===STATES.LEVEL && dev.enabled)) { startMusicFromUserGesture(); return; }
+    const t=e.touches[0]; if (!t) return;
+    startDragChar(t.clientX, t.clientY);
+  }, {passive:false});
+  window.addEventListener('touchmove', (e)=>{
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+    const t=e.touches[0]; if (!t) return;
+    moveDragChar(t.clientX, t.clientY);
+  }, {passive:false});
+  window.addEventListener('touchend', ()=>{
+    if (app.state===STATES.LEVEL && dev.enabled) endDragChar();
+  }, {passive:true});
+
+  // ---------- Preload player avatar ----------
+  loadImageWithFallback('player_avatar', ['images/avatar/player']);
+})();
+</script>
+</body>
+</html>
