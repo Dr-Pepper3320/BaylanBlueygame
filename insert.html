@@ -1,0 +1,1886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
+<title>PupTown Adventure</title>
+
+<!-- iOS Safari friendliness -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#cfeaff"/>
+
+<style>
+  :root{ --ink:#0b1b33; --bg:#cfeaff; --ui:#1d66ff; --ui2:#fff; --card:#ffffff; --mut:#5a7186; }
+  html,body{
+    margin:0;height:100%;
+    background:var(--bg);color:var(--ink);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
+    -webkit-tap-highlight-color:transparent;
+    overscroll-behavior:none;
+  }
+  #game{position:fixed;inset:0;display:block;background:linear-gradient(#bfe3ff,#e9f7ff); touch-action:none;}
+  .hud{position:fixed;left:0;right:0;top:0;display:flex;gap:.5rem;align-items:center;
+    padding:.5rem .75rem; padding-top:calc(.5rem + env(safe-area-inset-top)); pointer-events:none}
+  .btn,.tab{pointer-events:auto;background:var(--ui);color:var(--ui2);border:none;border-radius:12px;padding:.6rem .9rem;font-weight:800;box-shadow:0 4px 0 rgba(0,0,0,.15);user-select:none}
+  .btn:active,.tab:active{transform:translateY(2px)}
+  .ghost{background:rgba(255,255,255,.7);color:var(--ink)}
+  .right{margin-left:auto;display:flex;gap:.5rem}
+  .badge{pointer-events:none;background:#fff;border-radius:12px;padding:.35rem .6rem;font-weight:700;color:#123;box-shadow:0 2px 0 rgba(0,0,0,.08)}
+  .panel{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;
+    padding:calc(2rem + env(safe-area-inset-top)) 2rem calc(2rem + env(safe-area-inset-bottom)); z-index:5}
+  .card{width:min(920px,92vw);max-height:82vh;overflow:auto;background:var(--card);border-radius:18px;padding:1rem;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+  .close{float:right}
+  h1,h2{margin:.2rem 0 .6rem}
+  .tabs{display:flex;gap:.5rem;margin:.5rem 0 .75rem}
+  .tab{background:#edf3ff;color:#1d2b48}
+  .tab.active{background:var(--ui);color:#fff}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+  .sticker{border:3px solid #eee;border-radius:14px;padding:.6rem;text-align:center;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;background:#fff}
+  .sticker.locked{filter:grayscale(1) contrast(.7);opacity:.7}
+  .sticker .face{width:72px;height:72px;border-radius:12px;margin-bottom:.4rem;border:4px solid rgba(0,0,0,.05);object-fit:contain;background:#f7f7f7}
+  .controls{position:fixed;inset:0;pointer-events:none}
+  .stick{position:absolute;left:calc(18px + env(safe-area-inset-left));bottom:calc(18px + env(safe-area-inset-bottom));width:160px;height:160px;pointer-events:auto;touch-action:none}
+  .stick .base{width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,.35);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .stick .nub{position:absolute;left:50%;top:50%;width:72px;height:72px;margin:-36px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 6px 14px rgba(0,0,0,.25)}
+  .action{position:absolute;right:calc(18px + env(safe-area-inset-right));bottom:calc(28px + env(safe-area-inset-bottom));pointer-events:auto}
+  @media (hover:hover) and (pointer:fine){ .controls{display:none} .action{display:none} }
+  .toast{position:fixed;left:50%;bottom:calc(18vh + env(safe-area-inset-bottom));transform:translateX(-50%);background:#fff;color:#123;border-radius:14px;padding:.6rem .9rem;font-weight:700;box-shadow:0 10px 24px rgba(0,0,0,.2);opacity:0;transition:.2s;z-index:6}
+  .toast.show{opacity:1}
+  .devbar{position:fixed;left:12px;bottom:calc(12px + env(safe-area-inset-bottom));background:rgba(0,0,0,.6);color:#fff;
+    padding:.5rem .6rem;border-radius:10px;display:none;gap:.4rem;align-items:center;
+    font:600 12px system-ui,-apple-system,Segoe UI,Roboto,Arial;z-index:4}
+  .devbar button{background:#fff;color:#111;border:none;border-radius:8px;padding:.35rem .55rem;font-weight:800}
+  .dev-tag{position:fixed;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));background:#ffd54d;color:#111;
+    padding:.35rem .55rem;border-radius:8px;font:800 12px system-ui;display:none;z-index:4}
+  .err{position:fixed;left:12px;top:calc(60px + env(safe-area-inset-top));background:#ffebe8;color:#8a1f11;border:2px solid #f1b0ab;
+    padding:.5rem .6rem;border-radius:8px;display:none;font:700 12px system-ui;max-width:90vw;z-index:7}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud" aria-live="polite">
+  <span class="badge" id="stateBadge">Menu</span>
+  <span class="badge" id="zoneBadge">—</span>
+  <div class="right">
+    <button class="btn ghost" id="btnMenu">Menu</button>
+    <button class="btn ghost" id="btnMap">Map</button>
+    <button class="btn ghost" id="btnStickers">Stickers</button>
+    <button class="btn ghost" id="btnProfile">Profile</button>
+  </div>
+</div>
+
+<div class="panel" id="menuPanel" aria-modal="true" role="dialog">
+  <div class="card">
+    <button class="btn close" id="closeMenu">Close</button>
+    <h2 style="margin:0 0 .25rem 0;">PupTown Adventure</h2>
+    <div style="color:#5a7186;margin-bottom:.5rem">Explore the map, collect everyone in each location to complete it, and move on!</div>
+    <div class="tabs">
+      <button class="tab active" data-tab="play">Play</button>
+      <button class="tab" data-tab="stickers">Sticker Book</button>
+      <button class="tab" data-tab="profile">Profile</button>
+    </div>
+    <div id="menuPlay">
+      <p><b>How to play</b> — Start at school. Catch everyone there to unlock the next place. Desktop: WASD/Arrows + Space. Mobile: joystick + Collect.</p>
+      <button class="btn" id="startGame">Start / Continue</button>
+      <button class="btn ghost" id="resetProgress">Reset Progress</button>
+    </div>
+    <div id="menuStickers" style="display:none">
+      <h2>Sticker Book</h2>
+      <div class="grid" id="stickerGrid"></div>
+    </div>
+    <div id="menuProfile" style="display:none">
+      <h2>Profile</h2>
+      <label>Name<br/><input id="profName" placeholder="Your name" style="padding:.5rem;border-radius:10px;border:2px solid #e6edf7;width:260px"/></label>
+      <div style="height:.4rem"></div>
+      <label>Avatar color<br/><input type="color" id="profColor" value="#2d7cff" style="height:44px;border:none;background:none"/></label>
+      <div style="height:.6rem"></div>
+      <button class="btn" id="saveProfile">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- QUIZ PANEL (Calypso) -->
+<div class="panel" id="quizPanel" aria-modal="true" role="dialog">
+  <div class="card">
+    <button class="btn close" id="quizClose">Not now</button>
+    <h2 id="quizTitle" style="margin:0 0 .25rem 0;">Calypso’s Question</h2>
+    <p id="quizPrompt" style="margin:.25rem 0 1rem">What is 2 + 2?</p>
+    <div id="quizChoices" class="grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px"></div>
+  </div>
+</div>
+
+<!-- COMPLETION PANEL -->
+<div class="panel" id="completePanel" aria-modal="true" role="dialog">
+  <div class="card" style="text-align:center">
+    <h2 style="margin-top:0">🎉 Congratulations!</h2>
+    <p id="completeMsg" style="margin:.4rem 0 1rem">You finished this level.</p>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center">
+      <button class="btn" id="btnRepeatLevel">Repeat Level</button>
+      <button class="btn ghost" id="btnReturnMap">Return to Map</button>
+    </div>
+  </div>
+</div>
+
+<div class="controls">
+  <div class="stick" id="stick"><div class="base"></div><div class="nub" id="nub"></div></div>
+  <button class="btn action" id="btnCollect">Collect</button>
+</div>
+
+<div class="devbar" id="devBar">
+  <span id="devInfo">DEV: —</span>
+  <button id="devCopy">Copy JSON</button>
+  <button id="devSave">Save</button>
+  <button id="devDownload">Download JSON</button>
+  <button id="devReset">Reset</button>
+  <button id="devWalls">Walls</button>
+  <button id="devAddWall">Add Wall</button>
+  <button id="devAddLine">Add Line</button>
+  <button id="devDelWall">Delete</button>
+  <button id="devExit">Exit</button>
+</div>
+<div class="dev-tag" id="devTag">DEV MODE</div>
+
+<div class="toast" id="toast"></div>
+<div class="err" id="err"></div>
+
+<script>
+(() => {
+  const errEl = document.getElementById('err');
+  window.addEventListener('error', (e)=>{ errEl.textContent = 'Error: ' + (e.message || e.error); errEl.style.display = 'block'; });
+  if (typeof window.json === 'undefined') window.json = window.JSON;
+
+  // ---------- Canvas & DPR ----------
+  const SAVE_KEY = "puptown_save_ios";
+  const DPR = Math.max(1, Math.min(2, devicePixelRatio || 1));
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  function resize(){ canvas.width=Math.floor(innerWidth*DPR); canvas.height=Math.floor(innerHeight*DPR); canvas.style.width=innerWidth+'px'; canvas.style.height=innerHeight+'px'; }
+  addEventListener('resize', resize, {passive:true}); resize();
+
+  // Block page scroll while playing
+  document.addEventListener('touchmove', (e)=>{
+    const panelOpen = document.getElementById('menuPanel').style.display==='flex' ||
+                      document.getElementById('quizPanel').style.display==='flex' ||
+                      document.getElementById('completePanel').style.display==='flex';
+    if (!panelOpen) e.preventDefault();
+  }, {passive:false});
+
+  // ---------- App state ----------
+  const STATES = { MENU:'Menu', MAP:'Map', LEVEL:'Level' };
+  let app = {
+    state: STATES.MENU,
+    profile: { name:"Player", color:"#2d7cff" },
+    collected: new Set(),
+    visitedPlaces: new Set(),
+    lastPlace: null,
+    progress: null,
+    currentLevelIdx: 0
+  };
+
+  // ---------- Images ----------
+  const images = {};
+  function hyphenUnderscoreVariants(pathBase){
+    const slash = pathBase.lastIndexOf('/');
+    const dir = slash >= 0 ? pathBase.slice(0, slash+1) : '';
+    const name = slash >= 0 ? pathBase.slice(slash+1) : pathBase;
+    const alt = name.includes('-') ? name.replace(/-/g,'_') : name.replace(/_/g,'-');
+    return alt === name ? [pathBase] : [dir+name, dir+alt];
+  }
+  function buildSrcs(srcOrBase){
+    const bases = Array.isArray(srcOrBase) ? srcOrBase : [srcOrBase];
+    return [...new Set(bases.flatMap(b=>{
+      const withVar = hyphenUnderscoreVariants(b);
+      const exts  = ['webp','png','jpg','jpeg','jfif'];
+      return withVar.flatMap(x=>{
+        const m = /^(.*)\.(webp|png|jpg|jpeg|jfif)$/i.exec(x);
+        return m ? [x] : exts.map(ext=>`${x}.${ext}`);
+      });
+    }).flatMap(p=>p.startsWith('images/')?[p,p.replace(/^images\//,'')]:[p,`images/${p}`]))];
+  }
+  function loadImageWithFallback(key, srcOrBase){
+    const sources = buildSrcs(srcOrBase);
+    return new Promise((resolve)=>{
+      let i=0;
+      const tryNext = () => {
+        if (i>=sources.length){ images[key]=null; return resolve(null); }
+        const im = new Image();
+        im.onload = ()=>{ images[key]=im; resolve(im); };
+        im.onerror = ()=>{ i++; tryNext(); };
+        im.src = sources[i];
+      };
+      tryNext();
+    });
+  }
+  // helper for icons inside DOM (tries .webp/.png/.jpg + images/ prefix)
+  function setIconWithFallback(imgEl, base){
+    const srcs = buildSrcs(base);
+    let i=0;
+    const tryNext=()=>{
+      if (i>=srcs.length){ imgEl.removeAttribute('src'); return; }
+      const s=srcs[i++]; imgEl.onerror=tryNext; imgEl.src=s;
+    };
+    tryNext();
+  }
+
+  // ---------- Sizes & camera ----------
+  const BASE_LEVEL_W = 1536, BASE_LEVEL_H = 1024;
+  let MAP_W = 3200, MAP_H = 2000;
+  let LEVEL_W = BASE_LEVEL_W, LEVEL_H = BASE_LEVEL_H;
+
+  const PLAY_VIEW_FRACTION = 0.20;
+  const camera = { x:0, y:0, scale:1 };
+  const CAMERA_HARD_LOCK = true;
+
+  function computeLevelScale(vw, vh){
+    return Math.min(vw/(LEVEL_W*PLAY_VIEW_FRACTION), vh/(LEVEL_H*PLAY_VIEW_FRACTION));
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+
+  // ---------- Places ----------
+  const places = [
+    {id:'family_home', name:"Bluey & Bingo's House", px:0.136064, py:0.486874, icon:'locations/home', labelSize:16, iconSize:62},
+    {id:'playground',  name:"Playground",             px:0.121641, py:0.858954, icon:'locations/playground', labelSize:14, iconSize:60},
+    {id:'park',        name:"The Park",               px:0.236268, py:0.679964, icon:'locations/park', labelSize:14, iconSize:58},
+    {id:'creek',       name:"The Creek",              px:0.296201, py:0.188009, icon:'locations/creek', labelSize:14, iconSize:58},
+    {id:'beach',       name:"The Beach",              px:0.779921, py:0.214678, icon:'locations/beach',  labelSize:21, iconSize:48},
+    {id:'pool',        name:"The Pool",               px:0.871444, py:0.634692, icon:'locations/pool',   labelSize:14, iconSize:48},
+    {id:'grandma',     name:"Nana's House",           px:0.789178, py:0.788877, icon:'locations/nana',   labelSize:16, iconSize:70},
+    {id:'school_east', name:"Bluey's School",         px:0.826902, py:0.424865, icon:'locations/school', labelSize:14, iconSize:64},
+    {id:'school_west', name:"Bingo's School",         px:0.134207, py:0.272034, icon:'locations/school', labelSize:14, iconSize:52},
+    {id:'big_peanut',  name:"The Big Peanut",         px:0.863551, py:0.083112, icon:'locations/museum', labelSize:14, iconSize:48}
+  ];
+  function placeXY(p){ p.x = Math.floor(p.px * MAP_W); p.y = Math.floor(p.py * MAP_H); }
+  const LEVEL_ORDER = ['school_west','family_home','park','playground','creek','beach','pool','grandma','school_east','big_peanut'];
+
+  // ---------- Level defs ----------
+  function slugifyName(n){ return n.trim().toLowerCase().replace(/\s+/g,'_').replace(/[^a-z0-9_]/g,''); }
+  const levelDefs = {
+    school_west: {
+      name: "Bingo's School",
+      mapBase: 'levels/school_west',
+      size: { w: BASE_LEVEL_W, h: BASE_LEVEL_H },
+      randomObstacles: true,
+      roster: ['Bingo','Bluey','Calypso','Chloe','Coco','Judo','Mackenzie','Rusty','Snickers']
+        .map(n => ({ id: slugifyName(n), name: n, img: `characters/school_west/${slugifyName(n)}` }))
+    }
+  };
+
+  // ---------- Sticker roster ----------
+  const stickerRoster = (() => {
+    const map = new Map();
+    [{ id:"bluey", name:"Bluey", img:"characters/bluey" },
+     { id:"bingo", name:"Bingo", img:"characters/bingo" }].forEach(r => map.set(r.id, r));
+    Object.values(levelDefs).forEach(def => (def.roster||[]).forEach(r => {
+      const id = (r.id||"").toLowerCase();
+      if (!map.has(id)) map.set(id, { id, name:r.name, img:r.img });
+    }));
+    return Array.from(map.values()).sort((a,b)=>a.name.localeCompare(b.name));
+  })();
+
+  // ---------- Save / Load ----------
+  function loadSave(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      if (data.profile) app.profile = data.profile;
+      if (Array.isArray(data.collected)) app.collected = new Set(data.collected.map(x=>(x||"").toLowerCase()));
+      if (Array.isArray(data.visitedPlaces)) app.visitedPlaces = new Set(data.visitedPlaces);
+      if (data.lastPlace) app.lastPlace = data.lastPlace;
+      if (data.progress) app.progress = data.progress;
+      if (typeof data.currentLevelIdx === 'number') app.currentLevelIdx = data.currentLevelIdx;
+    }catch(e){}
+  }
+  function writeSave(){
+    try{
+      localStorage.setItem(SAVE_KEY, JSON.stringify({
+        profile: app.profile,
+        collected: Array.from(app.collected),
+        visitedPlaces: Array.from(app.visitedPlaces),
+        lastPlace: app.lastPlace,
+        progress: app.progress,
+        currentLevelIdx: app.currentLevelIdx
+      }));
+    }catch(e){}
+  }
+  function ensureProgress(){
+    if (!app.progress) app.progress = {};
+    LEVEL_ORDER.forEach((id, idx)=>{
+      if (!app.progress[id]) app.progress[id] = { unlocked: idx===0, completed: false };
+    });
+    let firstPlayable = 0;
+    for (let i=0;i<LEVEL_ORDER.length;i++){
+      const s = app.progress[LEVEL_ORDER[i]];
+      if (s.unlocked && !s.completed){ firstPlayable = i; break; }
+    }
+    app.currentLevelIdx = firstPlayable;
+  }
+  loadSave(); ensureProgress();
+
+  // ---------- UI ----------
+  const stateBadge = document.getElementById('stateBadge');
+  const zoneBadge  = document.getElementById('zoneBadge');
+  const toast = document.getElementById('toast');
+  function showToast(msg){ toast.textContent=msg; toast.classList.add('show'); setTimeout(()=>toast.classList.remove('show'),1600); }
+  function setState(s){ app.state=s; stateBadge.textContent=s; document.getElementById('menuPanel').style.display = (s===STATES.MENU?'flex':'none'); }
+
+  const menuPanel = document.getElementById('menuPanel');
+  function selectTab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+    document.getElementById('menuPlay').style.display     = name==='play'?'block':'none';
+    document.getElementById('menuStickers').style.display = name==='stickers'?'block':'none';
+    document.getElementById('menuProfile').style.display  = name==='profile'?'block':'none';
+    if (name==='stickers') renderStickerGrid();
+    if (name==='profile'){ profName.value = app.profile.name; profColor.value = app.profile.color; }
+  }
+  menuPanel.addEventListener('click', (e)=>{ if (e.target.classList.contains('tab')) selectTab(e.target.dataset.tab); });
+
+  function getPlaceById(id){ return places.find(p=>p.id===id); }
+  function currentPlayableId(){
+    for (let i=0;i<LEVEL_ORDER.length;i++){
+      const id = LEVEL_ORDER[i];
+      const s = app.progress[id];
+      if (s && s.unlocked && !s.completed) return id;
+    }
+    return LEVEL_ORDER[LEVEL_ORDER.length-1];
+  }
+  function unlockNext(afterId){
+    const idx = LEVEL_ORDER.indexOf(afterId);
+    for (let j=idx+1;j<LEVEL_ORDER.length;j++){
+      const id = LEVEL_ORDER[j];
+      const st = app.progress[id];
+      if (st && !st.unlocked){
+        st.unlocked = true;
+        app.currentLevelIdx = j;
+        writeSave();
+        return id;
+      }
+    }
+    return null;
+  }
+  function isLevelComplete(placeId){
+    const def = levelDefs[placeId];
+    if (!def || !def.roster || !def.roster.length) return false;
+    return def.roster.every(r => app.collected.has((r.id||'').toLowerCase()));
+  }
+
+  // ===== Completion panel =====
+  const completePanel = document.getElementById('completePanel');
+  const completeMsg   = document.getElementById('completeMsg');
+  const btnRepeat     = document.getElementById('btnRepeatLevel');
+  const btnMap        = document.getElementById('btnReturnMap');
+  let completionOpen = false;
+
+  function celebrateBurst(){
+    if (!level) return;
+    const cx = level.player.x, cy = level.player.y;
+    for (let i=0;i<10;i++){
+      const a = (i/10)*Math.PI*2;
+      const r = 120 + Math.random()*80;
+      const x = cx + Math.cos(a)*r;
+      const y = cy + Math.sin(a)*r;
+      spawnCollectEffect(x,y);
+    }
+  }
+  function openCompletePanel(placeId){
+    const levelName = levelDefs[placeId]?.name || getPlaceById(placeId)?.name || 'this level';
+    completeMsg.innerHTML = `You finished <b>${levelName}</b>!`;
+    completionOpen = true;
+    inputLocked = true;
+    completePanel.style.display = 'flex';
+    celebrateBurst();
+  }
+  function closeCompletePanel(){
+    completionOpen = false;
+    inputLocked = false;
+    completePanel.style.display = 'none';
+  }
+  btnMap.onclick = ()=>{ closeCompletePanel(); setState(STATES.MAP); };
+  btnRepeat.onclick = ()=>{ const id = level?.id; closeCompletePanel(); if (id) enterLevel(id); };
+
+  function onLevelCompleted(placeId){
+    if (!app.progress[placeId] || app.progress[placeId].completed) return;
+    app.progress[placeId].completed = true;
+    unlockNext(placeId);
+    writeSave();
+    openCompletePanel(placeId);
+  }
+
+  // Nav buttons
+  document.getElementById('btnMenu').onclick     = ()=>{ selectTab('play'); setState(STATES.MENU); onUserGestureAudioUnlock(); };
+  document.getElementById('btnMap').onclick      = ()=>{ setState(STATES.MAP); onUserGestureAudioUnlock(); };
+  document.getElementById('btnStickers').onclick = ()=>{ selectTab('stickers'); setState(STATES.MENU); onUserGestureAudioUnlock(); };
+  document.getElementById('btnProfile').onclick  = ()=>{ selectTab('profile'); setState(STATES.MENU); onUserGestureAudioUnlock(); };
+  document.getElementById('closeMenu').onclick   = ()=> setState(STATES.MAP);
+  document.getElementById('startGame').onclick   = ()=>{ ensureProgress(); const id=currentPlayableId(); setState(STATES.MAP); setTimeout(()=>enterLevel(id), 80); onUserGestureAudioUnlock(); };
+  document.getElementById('resetProgress').onclick = ()=>{
+    if (!confirm("Reset stickers & level progression?")) return;
+    app.collected.clear(); app.visitedPlaces.clear(); app.lastPlace=null;
+    app.progress = null; app.currentLevelIdx = 0; ensureProgress();
+    writeSave(); renderStickerGrid(); showToast("Progress reset");
+  };
+  const profName = document.getElementById('profName');
+  const profColor= document.getElementById('profColor');
+  document.getElementById('saveProfile').onclick = ()=>{ app.profile.name = profName.value.trim()||"Player"; app.profile.color = profColor.value||"#2d7cff"; writeSave(); showToast("Profile saved"); };
+
+  // ---------- Sticker images ----------
+  function stickerCandidatesFor(id, fallbackImgPath){
+    return [ `stickers/${id}`, fallbackImgPath || '', `characters/${id}`, `characters/school_west/${id}` ].filter(Boolean);
+  }
+  function createPlaceholderDataURL(name){
+    const initials = (name||'?').split(/\s+/).map(s=>s[0]||'').join('').slice(0,2).toUpperCase();
+    const svg = encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='144' height='144'><rect width='100%' height='100%' rx='16' fill='#eef3ff'/><text x='50%' y='56%' text-anchor='middle' font-family='system-ui,Arial' font-weight='800' font-size='48' fill='#1d2b48'>${initials}</text></svg>`);
+    return `data:image/svg+xml;charset=utf-8,${svg}`;
+  }
+  function buildStickerSrcs(id, fallbackImgPath){
+    return stickerCandidatesFor(id, fallbackImgPath).flatMap(base => buildSrcs(base));
+  }
+  function setStickerImg(imgEl, id, name, fallbackImgPath){
+    const srcs = buildStickerSrcs(id, fallbackImgPath);
+    let i = 0;
+    const tryNext = () => { if (i >= srcs.length){ imgEl.src = createPlaceholderDataURL(name); return; } const src = srcs[i++]; imgEl.onerror = tryNext; imgEl.onload = null; imgEl.src = src; };
+    tryNext();
+  }
+
+  // ---------- Sticker book SFX ----------
+  const hoverSfxCooldown = new Map();
+  function canPlayHover(id, ms=800){
+    const now = performance.now();
+    const last = hoverSfxCooldown.get(id) || 0;
+    if (now - last < ms) return false;
+    hoverSfxCooldown.set(id, now);
+    return true;
+  }
+  function attachStickerHoverSfx(el, charId){
+    const handler = ()=>{ if (canPlayHover(charId)) playStickerHoverSFX(charId); };
+    el.addEventListener('mouseenter', handler);
+    el.addEventListener('focus', handler);
+    el.addEventListener('touchstart', handler, {passive:true});
+    el.addEventListener('click', handler);
+  }
+  function renderStickerGrid(){
+    const grid = document.getElementById('stickerGrid');
+    grid.innerHTML = "";
+    for (const r of stickerRoster){
+      const id = r.id.toLowerCase();
+      const got = app.collected.has(id);
+      const div = document.createElement('div'); div.className='sticker '+(got?'':'locked');
+
+      const face = document.createElement('img'); face.className='face'; face.alt=r.name;
+      setStickerImg(face, id, r.name, r.img);
+
+      const label = document.createElement('div'); label.textContent=r.name;
+      div.appendChild(face); div.appendChild(label); grid.appendChild(div);
+
+      if (got){ div.tabIndex = 0; div.title = 'Hear ' + r.name; attachStickerHoverSfx(div, id); }
+    }
+  }
+  renderStickerGrid(); setState(STATES.MENU);
+
+  // ---------- Random helpers ----------
+  function seededRandom(seed){ let h=2166136261; for (let i=0;i<seed.length;i++){ h^=seed.charCodeAt(i); h=Math.imul(h,16777619);} return (h>>>0)/2**32; }
+  function randRange(seed,a,b){ return a + seededRandom(seed)*(b-a); }
+  function shuffle(arr){ for (let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+
+  // ---------- Dev mode ----------
+  const DEV_SAVE_KEY = "puptown_dev_places_v2";
+  const LEVEL_DEV_KEY = (id)=>`puptown_dev_chars_${id}`;
+  const LEVEL_IMG_KEY = (id)=>`level_img_${id}`;
+  const OBSTACLE_DEV_KEY = (id)=>`puptown_dev_obstacles_${id}`;
+
+  const dev = { enabled:false, dragging:null, hover:null, showGrid:false, draggingChar:null, dragOff:{x:0,y:0} };
+  // Wall/line editor state
+  dev.mode = 'chars'; // 'chars' | 'walls'
+  dev.wall = { adding:null, selected:-1, drag:null, handle:null };
+  const SNAP_R = 14;
+
+  function toggleDev(on){ dev.enabled = on; devBar.style.display = on ? 'flex' : 'none'; devTag.style.display = on ? 'block' : 'none'; showToast(on ? "Dev mode ON (Shift+D toggles)" : "Dev mode OFF"); }
+  if (location.search.includes('dev=1')) toggleDev(true);
+
+  function applyPlacePercents(){ places.forEach(placeXY); }
+
+  /* ===== external JSON loader (puptown-dev.json) ===== */
+  async function tryFetchJSON(url){
+    try{
+      const res = await fetch(url, {cache:'no-store'});
+      if (!res.ok) return null;
+      return await res.json();
+    }catch(e){ return null; }
+  }
+  function applyExternalGameData(data){
+    if (!data) return;
+
+    // places
+    const placeArr = Array.isArray(data) ? data
+                 : Array.isArray(data.places) ? data.places
+                 : null;
+    if (placeArr){
+      for (const o of placeArr){
+        const p = places.find(x=>x.id===o.id);
+        if (!p) continue;
+        if (typeof o.px==='number') p.px = o.px;
+        if (typeof o.py==='number') p.py = o.py;
+        if (typeof o.labelSize==='number') p.labelSize = o.labelSize;
+        if (typeof o.iconSize==='number')  p.iconSize  = o.iconSize;
+      }
+    }
+
+    // levels (character layout)
+    if (data.levels && typeof data.levels === 'object'){
+      for (const [lvlId, arr] of Object.entries(data.levels)){
+        if (Array.isArray(arr)){
+          try{ localStorage.setItem(LEVEL_DEV_KEY(lvlId), JSON.stringify(arr)); }catch(_){}
+        }
+      }
+    }
+
+    // obstacles
+    if (data.obstacles && typeof data.obstacles === 'object'){
+      for (const [lvlId, obs] of Object.entries(data.obstacles)){
+        if (Array.isArray(obs)){
+          try{ localStorage.setItem(OBSTACLE_DEV_KEY(lvlId), JSON.stringify(obs)); }catch(_){}
+        }
+      }
+    }
+
+    applyPlacePercents();
+    showToast('External data applied');
+  }
+  async function loadExternalGameData(){
+    const full = await tryFetchJSON('puptown-dev.json') || await tryFetchJSON('game.json');
+    if (full) { applyExternalGameData(full); return; }
+    const placesOnly = await tryFetchJSON('places.json');
+    if (placesOnly) applyExternalGameData(placesOnly);
+  }
+  /* ===== /external loader ===== */
+
+  (async function initOverrides(){
+    await loadExternalGameData();        // << loads your puptown-dev.json if present
+
+    // also load any saved place overrides from localStorage
+    const raw = localStorage.getItem(DEV_SAVE_KEY);
+    if (raw){
+      try{
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)){
+          for (const o of arr){
+            const p = places.find(x=>x.id===o.id);
+            if (!p) continue;
+            if (typeof o.px==='number') p.px = o.px;
+            if (typeof o.py==='number') p.py = o.py;
+            if (typeof o.labelSize==='number') p.labelSize = o.labelSize;
+            if (typeof o.iconSize==='number')  p.iconSize  = o.iconSize;
+          }
+        }
+      }catch(_){}
+    }
+    applyPlacePercents();
+  })();
+
+  const devBar = document.getElementById('devBar');
+  const devInfo = document.getElementById('devInfo');
+  const devTag  = document.getElementById('devTag');
+  document.getElementById('devCopy').onclick     = ()=>{ const txt=JSON.stringify(getAllDevData(),null,2); navigator.clipboard?.writeText(txt).then(()=>showToast("Copied dev JSON")); };
+  document.getElementById('devSave').onclick     = ()=>saveAllDev();
+  document.getElementById('devDownload').onclick = ()=>downloadAllDev();
+  document.getElementById('devReset').onclick    = ()=>resetAllDev();
+  document.getElementById('devExit').onclick     = ()=>toggleDev(false);
+
+  // New dev buttons
+  const btnWalls   = document.getElementById('devWalls');
+  const btnAddWall = document.getElementById('devAddWall');
+  const btnAddLine = document.getElementById('devAddLine');
+  const btnDelWall = document.getElementById('devDelWall');
+
+  btnWalls.onclick = ()=>{
+    dev.mode = (dev.mode === 'walls' ? 'chars' : 'walls');
+    showToast(dev.mode==='walls' ? 'Dev: editing walls/lines' : 'Dev: editing characters');
+  };
+  btnAddWall.onclick = ()=>{
+    if (!(dev.enabled && app.state===STATES.LEVEL)){ showToast("Open a level first"); return; }
+    dev.mode='walls'; dev.wall.adding='wall';
+    showToast("Click to start a wall, then drag to size");
+  };
+  btnAddLine.onclick = ()=>{
+    if (!(dev.enabled && app.state===STATES.LEVEL)){ showToast("Open a level first"); return; }
+    dev.mode='walls'; dev.wall.adding='line';
+    showToast("Click to place line start, drag to set the other end");
+  };
+  btnDelWall.onclick = ()=>{
+    if (!(dev.enabled && app.state===STATES.LEVEL)) return;
+    if (dev.mode!=='walls' || dev.wall.selected<0){ showToast("Select a wall/line first"); return; }
+    level.obstacles.splice(dev.wall.selected,1);
+    dev.wall.selected = -1;
+    saveDevObstacles(level.id, level.obstacles);
+    showToast("Deleted");
+  };
+
+  function getAllDevData() {
+    let placesData = null; try { placesData = JSON.parse(localStorage.getItem(DEV_SAVE_KEY) || 'null'); } catch {}
+    const levels = {}, obstacles = {};
+    Object.keys(levelDefs).forEach(id=>{
+      try { levels[id]     = JSON.parse(localStorage.getItem(LEVEL_DEV_KEY(id))      || 'null'); } catch {}
+      try { obstacles[id]  = JSON.parse(localStorage.getItem(OBSTACLE_DEV_KEY(id))   || 'null'); } catch {}
+    });
+    return { places: placesData, levels, obstacles };
+  }
+  function saveAllDev() {
+    if (app.state === STATES.LEVEL && level) {
+      const arr = level.items.map(it => ({ id: it.id, name: it.name, px: +(it.x/LEVEL_W).toFixed(6), py: +(it.y/LEVEL_H).toFixed(6), r: it.r }));
+      localStorage.setItem(LEVEL_DEV_KEY(level.id), JSON.stringify(arr));
+      saveDevObstacles(level.id, level.obstacles);
+      showToast("Dev layout saved");
+    } else showToast("Open a level to save its layout");
+  }
+  function downloadAllDev() {
+    const txt = JSON.stringify(getAllDevData(), null, 2);
+    const blob = new Blob([txt], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'puptown-dev.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    showToast("Downloaded dev JSON");
+  }
+  function resetAllDev(){
+    localStorage.removeItem(DEV_SAVE_KEY);
+    Object.keys(levelDefs).forEach(id=>{
+      localStorage.removeItem(LEVEL_DEV_KEY(id));
+      localStorage.removeItem(OBSTACLE_DEV_KEY(id));
+    });
+    showToast("Dev data reset (reload level)");
+  }
+
+  // ---------- Level ----------
+  let level = null;
+
+  function makeObstacles(placeId){
+    const obs=[]; for (let i=0;i<18;i++){
+      const sx=seededRandom(placeId+'ox'+i), sy=seededRandom(placeId+'oy'+i);
+      const x=Math.floor(80+sx*(LEVEL_W-220)), y=Math.floor(80+sy*(LEVEL_H-220));
+      obs.push({x,y,w:120,h:70,type:(i%3===0?'house':(i%3===1?'tree':'rock'))});
+    } return obs;
+  }
+  function loadDevCharLayout(placeId){
+    try{ const raw = localStorage.getItem(LEVEL_DEV_KEY(placeId)); if (!raw) return null; const arr = JSON.parse(raw); return Array.isArray(arr) ? arr : null; }catch(e){ return null; }
+  }
+  function loadDevObstacles(placeId){
+    try{
+      const raw = localStorage.getItem(OBSTACLE_DEV_KEY(placeId));
+      if (!raw) return null;
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr.map(o => {
+        if (o.type==='line') return { type:'line', x1:+o.x1||0, y1:+o.y1||0, x2:+o.x2||0, y2:+o.y2||0, th: +o.th||10 };
+        return { x:+o.x||0, y:+o.y||0, w:+o.w||0, h:+o.h||0, type:o.type||'wall' };
+      }) : null;
+    }catch(e){ return null; }
+  }
+  function saveDevObstacles(placeId, obs){
+    try{
+      localStorage.setItem(
+        OBSTACLE_DEV_KEY(placeId),
+        JSON.stringify(obs.map(o=>{
+          if (o.type==='line') return { type:'line', x1:o.x1, y1:o.y1, x2:o.x2, y2:o.y2, th:o.th||10 };
+          return { type:o.type||'wall', x:o.x, y:o.y, w:o.w, h:o.h };
+        }))
+      );
+    }catch(e){}
+  }
+
+  // ---------- NPC wandering ----------
+  function randomPoint(margin=72){ return { x: Math.floor(margin + Math.random()*(LEVEL_W - 2*margin)), y: Math.floor(margin + Math.random()*(LEVEL_H - 2*margin)) }; }
+  function chooseNPCTarget(it){
+    if (it.frozen) return;
+    let p = randomPoint(72);
+    const dx = p.x - level.player.x, dy = p.y - level.player.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 180 && Math.random() < 0.3){
+      p.x = level.player.x - dx; p.y = level.player.y - dy;
+      p.x = clamp(p.x, it.r, LEVEL_W - it.r);
+      p.y = clamp(p.y, it.r, LEVEL_H - it.r);
+    }
+    it.tx = p.x; it.ty = p.y;
+    it.retime = performance.now() + 3000 + Math.random()*3000;
+    it.speed = 1.6 + Math.random() * 1.4;
+  }
+  function updateNPCs(dt){
+    if (!level) return;
+    const items = level.items;
+    const now = performance.now();
+
+    for (const it of items){
+      if (app.collected.has(it.id) || it.frozen) continue;
+      if (!it.tx || now > it.retime) chooseNPCTarget(it);
+      const dx = it.tx - it.x, dy = it.ty - it.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 10){ chooseNPCTarget(it); continue; }
+      const step = Math.min(dist, it.speed);
+      const nx = it.x + (dx/dist) * step;
+      const ny = it.y + (dy/dist) * step;
+      const fixed = resolveCollisions(it.x, it.y, nx, ny, it.r, level.obstacles, LEVEL_W, LEVEL_H);
+      if (Math.hypot(fixed.x - it.x, fixed.y - it.y) < 0.2) chooseNPCTarget(it);
+      else { it.x = fixed.x; it.y = fixed.y; }
+    }
+
+    // separation
+    for (let i=0;i<items.length;i++){
+      const a = items[i]; if (app.collected.has(a.id) || a.frozen) continue;
+      for (let j=i+1;j<items.length;j++){
+        const b = items[j]; if (app.collected.has(b.id) || b.frozen) continue;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.hypot(dx, dy);
+        const min = a.r + b.r + 6;
+        if (d > 0 && d < min){
+          const push = (min - d) * 0.5;
+          const ux = dx/d, uy = dy/d;
+          a.x -= ux*push; a.y -= uy*push;
+          b.x += ux*push; b.y += uy*push;
+          a.x = clamp(a.x, a.r, LEVEL_W - a.r); a.y = clamp(a.y, a.r, LEVEL_H - a.r);
+          b.x = clamp(b.x, b.r, LEVEL_W - b.r); b.y = clamp(b.y, b.r, LEVEL_H - b.r);
+        }
+      }
+    }
+  }
+
+  async function enterLevel(placeId){
+    const place = places.find(p=>p.id===placeId); if (!place) return;
+    const def = levelDefs[placeId] || null;
+
+    LEVEL_W = def?.size?.w || BASE_LEVEL_W;
+    LEVEL_H = def?.size?.h || BASE_LEVEL_H;
+
+    if (def?.mapBase){ await loadImageWithFallback(LEVEL_IMG_KEY(placeId), def.mapBase); } else { images[LEVEL_IMG_KEY(placeId)] = null; }
+
+    app.lastPlace=placeId; app.visitedPlaces.add(placeId); writeSave();
+
+    let items = [];
+    if (def?.roster?.length){
+      const saved = loadDevCharLayout(placeId);
+      items = def.roster.map(r=>{
+        const s = saved?.find(x=>x.id===r.id);
+        const x = s ? Math.floor((s.px||0.5) * LEVEL_W) : Math.floor(randRange(r.id+'x', 140, LEVEL_W-140));
+        const y = s ? Math.floor((s.py||0.5) * LEVEL_H) : Math.floor(randRange(r.id+'y', 140, LEVEL_H-140));
+        return { id:r.id.toLowerCase(), name:r.name, x, y, r:(s?.r||28), imgKey:'charlvl_'+placeId+'_'+r.id, base:r.img, tx:0, ty:0, speed:1.8, retime:0, frozen:false };
+      });
+      await Promise.all(items.map(it=>loadImageWithFallback(it.imgKey, it.base)));
+    }
+
+    const player = { x:LEVEL_W/2, y:LEVEL_H/2, r:18, vx:0, vy:0 };
+
+    // Obstacles: prefer saved dev, else random if no art
+    let obstacles = [];
+    const savedObs = loadDevObstacles(placeId);
+    if (savedObs && savedObs.length){
+      obstacles = savedObs;
+    } else {
+      const hasArt = !!images[LEVEL_IMG_KEY(placeId)];
+      const randomObstacles = (levelDefs[placeId]?.randomObstacles ?? !hasArt);
+      obstacles = randomObstacles ? makeObstacles(placeId) : [];
+    }
+
+    level = { id: placeId, place, mapImg: images[LEVEL_IMG_KEY(placeId)], player, items, followers: [], obstacles };
+
+    for (const it of level.items) chooseNPCTarget(it);
+
+    const vw = canvas.width/DPR, vh = canvas.height/DPR;
+    camera.scale = computeLevelScale(vw, vh);
+    const viewW = vw/camera.scale, viewH = vh/camera.scale;
+    camera.x = clamp(player.x - viewW/2, 0, LEVEL_W - viewW);
+    camera.y = clamp(player.y - viewH/2, 0, LEVEL_H - viewH);
+
+    setState(STATES.LEVEL);
+    if (!def?.roster?.length) showToast("Explore — no stickers here yet");
+  }
+
+  // ---------- Effects ----------
+  const effects = [];
+  function spawnCollectEffect(x,y){
+    effects.push({kind:'ring', x, y, r:0, max:90, life:520});
+    const n=18;
+    for (let i=0;i<n;i++){
+      const a = (i/n)*Math.PI*2 + Math.random()*0.4;
+      const s = 1.6 + Math.random()*1.2;
+      effects.push({ kind:'spark', x, y, vx: Math.cos(a)*s*2.2, vy: Math.sin(a)*s*2.2, life: 500 + Math.random()*300 });
+    }
+  }
+  function updateEffects(dt){
+    for (const e of effects){ e.life -= dt; if (e.kind==='ring'){ e.r += dt*0.18; } else { e.x += e.vx*dt*0.06; e.y += e.vy*dt*0.06; e.vx *= 0.99; e.vy *= 0.99; } }
+    for (let i=effects.length-1;i>=0;i--) if (effects[i].life<=0) effects.splice(i,1);
+  }
+  function drawEffects(){
+    for (const e of effects){
+      if (e.kind==='ring'){
+        const t = Math.max(0, Math.min(1, e.life/520));
+        ctx.save(); ctx.globalAlpha = t*0.8; ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+        ctx.lineWidth = 4; ctx.strokeStyle = '#fff'; ctx.stroke(); ctx.restore();
+      } else {
+        const t = Math.max(0, Math.min(1, e.life/800));
+        ctx.save(); ctx.globalAlpha = t; ctx.fillStyle = '#fffacd'; ctx.beginPath(); ctx.arc(e.x, e.y, 2.6, 0, Math.PI*2); ctx.fill(); ctx.restore();
+      }
+    }
+  }
+
+  // ---------- Followers ----------
+  function startFollowerIfSpecial(item){
+    const id = (item.id||'').toLowerCase();
+    if (id!=='bluey' && id!=='bingo' && id!=='calypso') return; // allow Calypso to follow
+    const follower = { id, name:item.name, x:item.x, y:item.y, r:16, imgKey: item.imgKey, vx:0, vy:0 };
+    level.followers = [follower];
+    showToast(`${item.name} is following you!`);
+  }
+  function updateFollowers(dt){
+    if (!level || !level.followers) return;
+    const targetLead = 44, maxStep = 3.0;
+    for (const f of level.followers){
+      const vx = level.player.vx, vy = level.player.vy;
+      const spd = Math.hypot(vx, vy);
+      let tx = spd>0.1 ? level.player.x - (vx/spd)*targetLead : level.player.x - 24;
+      let ty = spd>0.1 ? level.player.y - (vy/spd)*targetLead : level.player.y + 12;
+      const dx = tx - f.x, dy = ty - f.y, dist = Math.hypot(dx, dy);
+      if (dist > 0.1){
+        const step = Math.min(dist, maxStep);
+        const nx = f.x + dx/dist * step, ny = f.y + dy/dist * step;
+        const fixed = resolveCollisions(f.x, f.y, nx, ny, f.r, level.obstacles, LEVEL_W, LEVEL_H);
+        f.x = fixed.x; f.y = fixed.y;
+      }
+    }
+  }
+
+  // ---------- Music ----------
+  const MUSIC = { count: 13, path: 'audio', el: new Audio(), order: [], idx: 0, started: false, vol: 0.4, fadeTimer: 0 };
+  MUSIC.el.preload = 'none'; MUSIC.el.loop = false; MUSIC.el.playsInline = true; MUSIC.el.setAttribute('playsinline',''); MUSIC.el.controls = false; MUSIC.el.muted = false; MUSIC.el.volume = 0.0;
+  function buildTrackList(){ return Array.from({length: MUSIC.count}, (_,i)=> `${MUSIC.path}/${i+1}.mp3`); }
+  function preparePlaylist(){ MUSIC.order = shuffle(buildTrackList()); MUSIC.idx = 0; }
+  function nextIndex(){ MUSIC.idx++; if (MUSIC.idx >= MUSIC.order.length) preparePlaylist(); }
+  function fadeTo(target, ms){ clearInterval(MUSIC.fadeTimer); const a = MUSIC.el, start = a.volume, steps = Math.max(1, Math.floor(ms/50)); let i = 0;
+    MUSIC.fadeTimer = setInterval(()=>{ i++; a.volume = start + (target-start)*(i/steps); if (i>=steps){ a.volume = target; clearInterval(MUSIC.fadeTimer); } },50); }
+  function playCurrent(){ if (!MUSIC.order.length) preparePlaylist(); const src = MUSIC.order[MUSIC.idx]; MUSIC.el.src=src; MUSIC.el.currentTime=0; const p=MUSIC.el.play(); if (p&&p.then) p.then(()=>fadeTo(MUSIC.vol,1000)).catch(()=>{}); }
+  function playNext(){ nextIndex(); playCurrent(); }
+  MUSIC.el.addEventListener('ended', playNext); MUSIC.el.addEventListener('error', playNext);
+
+  // ---------- WebAudio unlock ----------
+  let audioCtx = null;
+  function iosUnlockAudio(){
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!audioCtx) audioCtx = new AC();
+    if (audioCtx.state === 'suspended') { audioCtx.resume().catch(()=>{}); }
+    try{
+      const b = audioCtx.createBuffer(1, 1, 22050);
+      const src = audioCtx.createBufferSource();
+      src.buffer = b; src.connect(audioCtx.destination);
+      src.start(0);
+    }catch(_){}
+  }
+  function onUserGestureAudioUnlock(){
+    iosUnlockAudio();
+    if (!MUSIC.started){ MUSIC.started = true; if (!MUSIC.order.length) preparePlaylist(); playCurrent(); }
+  }
+
+  // ---------- SFX ----------
+  const SFX = { vol: 0.9,
+    playList(paths){
+      if (!paths.length) return;
+      let i=0;
+      const a=new Audio();
+      a.preload='auto';
+      a.playsInline=true; a.setAttribute('playsinline','');
+      a.volume=SFX.vol;
+      function tryNext(){ if (i>=paths.length) return; a.src=paths[i++]; a.currentTime=0; const p=a.play(); if (p&&p.then) p.catch(()=>tryNext()); }
+      a.addEventListener('error', tryNext, {passive:true});
+      tryNext();
+    }
+  };
+  function hasFollower(id){ return !!(level && level.followers && level.followers.some(f => (f.id||'').toLowerCase() === String(id).toLowerCase())); }
+  function playCollectSFX(characterId){
+    const id = (characterId||'').toLowerCase();
+    const candidates = [];
+    if (id==='bingo' && hasFollower('bluey')) candidates.push('audio/bluey/bingocomeon.mp3');
+    const nums=[1,2,3]; for (let i=nums.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [nums[i],nums[j]]=[nums[j],nums[i]]; }
+    nums.forEach(n=>candidates.push(`audio/${id}/${n}.mp3`));
+    SFX.playList(candidates);
+  }
+  function playStickerHoverSFX(characterId){
+    const id = (characterId||'').toLowerCase();
+    const nums=[1,2,3]; for (let i=nums.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [nums[i],nums[j]]=[nums[j],nums[i]]; }
+    const candidates = nums.map(n => `audio/${id}/${n}.mp3`);
+    SFX.playList(candidates);
+  }
+
+  /* ===== Quiz audio helpers ===== */
+  const QUIZ_AUDIO = {
+    calypso: {
+      question: ['audio/calypso/what-animal-makes-this-sound.mp3'],
+      correct:  ['audio/calypso/thats-right.mp3'],
+      pig: [
+        'audio/pig/1.mp3',
+        'audio/pig/2.mp3',
+        'audio/pig/3.mp3'
+      ]
+    }
+  };
+  function playOnce(paths, onended){
+    const a = new Audio();
+    a.preload = 'auto';
+    a.playsInline = true; a.setAttribute('playsinline','');
+    a.volume = SFX.vol;
+    let i = 0;
+    function tryNext(){
+      if (i >= paths.length){ if (onended) onended(); return; }
+      a.src = paths[i++]; a.currentTime = 0;
+      a.onended = ()=> onended && onended();
+      const p = a.play(); if (p && p.then) p.catch(()=>tryNext());
+    }
+    a.addEventListener('error', tryNext, {passive:true});
+    tryNext();
+    return a;
+  }
+  /* ===== /Quiz audio helpers ===== */
+
+  // ---------- Quiz (Calypso) ----------
+  const quizPanel   = document.getElementById('quizPanel');
+  const quizChoices = document.getElementById('quizChoices');
+  const quizClose   = document.getElementById('quizClose');
+  const quizTitle   = document.getElementById('quizTitle');
+  const quizPrompt  = document.getElementById('quizPrompt');
+
+  let activeQuiz = null;
+  let inputLocked = false;
+
+  function openCalypsoQuiz(item){
+    onUserGestureAudioUnlock(); // ensure audio unlocked
+    item.frozen = true;
+    inputLocked = true;
+
+    // Fixed 2-option quiz; correct is Pig
+    activeQuiz = {
+      item,
+      options: [
+        { id:'cow', label:'Cow', correct:false, iconBase:'icons/cow' },
+        { id:'pig', label:'Pig', correct:true,  iconBase:'icons/pig' }
+      ],
+      hintTimer: null,
+      questionAudio: null,
+      pigAudio: null,
+      lastPigIdx: -1
+    };
+
+    quizTitle.textContent = "Calypso’s Question";
+    quizPrompt.textContent = "What animal makes this sound?";
+
+    quizChoices.innerHTML = "";
+    activeQuiz.options.forEach(opt => {
+      const b = document.createElement('button');
+      b.className = 'btn';
+
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.alignItems = 'center';
+      wrap.style.gap = '.5rem';
+      wrap.style.justifyContent = 'center';
+
+      const img = document.createElement('img');
+      img.width = 40; img.height = 40;
+      img.alt = opt.label;
+      img.style.borderRadius = '10px';
+      img.style.objectFit = 'cover';
+      setIconWithFallback(img, opt.iconBase); // tries .webp first, then others
+
+      const span = document.createElement('span');
+      span.textContent = opt.label;
+
+      wrap.appendChild(img);
+      wrap.appendChild(span);
+      b.appendChild(wrap);
+
+      b.onclick = ()=> handleQuizAnswer(opt);
+      quizChoices.appendChild(b);
+    });
+
+    const playPromptWithPig = () => {
+      if (activeQuiz?.questionAudio){ activeQuiz.questionAudio.pause(); activeQuiz.questionAudio = null; }
+      if (activeQuiz?.pigAudio){ activeQuiz.pigAudio.pause(); activeQuiz.pigAudio = null; }
+
+      // 1) Calypso asks
+      activeQuiz.questionAudio = playOnce(QUIZ_AUDIO.calypso.question, () => {
+        // 2) Then a rotating pig sound (no immediate repeats)
+        const N = QUIZ_AUDIO.calypso.pig.length;
+        let idx = Math.floor(Math.random()*N);
+        if (idx === activeQuiz.lastPigIdx) idx = (idx+1)%N;
+        activeQuiz.lastPigIdx = idx;
+        activeQuiz.pigAudio = playOnce([QUIZ_AUDIO.calypso.pig[idx]]);
+      });
+    };
+
+    playPromptWithPig();
+    activeQuiz.hintTimer = setInterval(playPromptWithPig, 5000);
+
+    quizPanel.style.display = 'flex';
+  }
+
+  function stopQuizAudioTimers(){
+    if (!activeQuiz) return;
+    if (activeQuiz.hintTimer){ clearInterval(activeQuiz.hintTimer); activeQuiz.hintTimer = null; }
+    if (activeQuiz.questionAudio){ activeQuiz.questionAudio.pause(); activeQuiz.questionAudio = null; }
+    if (activeQuiz.pigAudio){ activeQuiz.pigAudio.pause(); activeQuiz.pigAudio = null; }
+  }
+
+  function handleQuizAnswer(opt){
+    if (!activeQuiz) return;
+
+    if (opt.correct){
+      stopQuizAudioTimers();
+      showToast("THAT'S RIGHT!");
+      playOnce(QUIZ_AUDIO.calypso.correct);
+
+      // Close UI and collect (Calypso will follow)
+      quizPanel.style.display = 'none';
+      inputLocked = false;
+      captureItem(activeQuiz.item);
+      activeQuiz = null;
+    } else {
+      showToast("Not quite — try again!");
+    }
+  }
+
+  function closeQuiz(unfreeze=true){
+    if (activeQuiz && unfreeze){ activeQuiz.item.frozen = false; }
+    stopQuizAudioTimers();
+    quizPanel.style.display = 'none';
+    inputLocked = false;
+  }
+  quizClose.onclick = ()=>{ closeQuiz(true); activeQuiz=null; };
+
+  // ---------- Map click -> enter level ----------
+  let mapView = { scale:1, ox:0, oy:0 };
+  function mapPointerToPlace(mx,my){
+    for (const p of places){
+      const R = (p.iconSize || 48) * 0.55;
+      const dx = mx - p.x, dy = my - p.y;
+      if (dx*dx + dy*dy < R*R) return p;
+    }
+    return null;
+  }
+  canvas.addEventListener('click',(e)=>{
+    if (app.state!==STATES.MAP) return;
+    const rect=canvas.getBoundingClientRect();
+    const cx=(e.clientX-rect.left)*(canvas.width/rect.width)/DPR;
+    const cy=(e.clientY-rect.top) *(canvas.height/rect.height)/DPR;
+    const mx=(cx - mapView.ox)/mapView.scale;
+    const my=(cy - mapView.oy)/mapView.scale;
+    const p=mapPointerToPlace(mx,my);
+    if (!p) return;
+    const st = app.progress[p.id] || {unlocked:false};
+    if (!st.unlocked){ showToast("Locked — finish the current location first"); return; }
+    enterLevel(p.id);
+  });
+
+  // ---------- Drawing helpers ----------
+  function roundRect(x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+
+  function drawMenu(vw,vh){
+    const bg = images['menu_bg'];
+    if (bg) ctx.drawImage(bg, 0, 0, vw, vh); else { ctx.fillStyle='#cfeaff'; ctx.fillRect(0,0,vw,vh); }
+    ctx.fillStyle='rgba(0,0,0,0.4)'; ctx.fillRect(0,0,vw,60);
+    ctx.fillStyle='#fff'; ctx.font='900 24px system-ui,-apple-system,Segoe UI,Roboto,Arial'; ctx.fillText('PupTown Adventure', 16, 40);
+  }
+
+  function drawWorldMap(){
+    const world = images['world_map'];
+    if (world) ctx.drawImage(world, 0, 0, MAP_W, MAP_H);
+    else {
+      ctx.fillStyle='#dff8d6'; ctx.fillRect(0,0,MAP_W,MAP_H);
+      for (let y=0;y<MAP_H;y+=80){ for (let x=0;x<MAP_W;x+=80){ ctx.fillStyle=((x/80+y/80)%2===0)?'#c7f0bf':'#bdeab4'; ctx.fillRect(x,y,80,80);} }
+    }
+
+    for (const p of places){
+      const status = app.progress[p.id] || {unlocked:false, completed:false};
+      const px=p.x, py=p.y; const iconSize = p.iconSize || 48;
+
+      ctx.save();
+      ctx.globalAlpha = status.unlocked ? 1 : 0.35;
+
+      ctx.fillStyle='rgba(0,0,0,.18)';
+      ctx.beginPath(); ctx.ellipse(px, py + iconSize*0.35, iconSize*0.38, iconSize*0.16, 0, 0, Math.PI*2); ctx.fill();
+
+      const icon = images['place_'+p.id];
+      if (icon) ctx.drawImage(icon, px - iconSize/2, py - iconSize/2, iconSize, iconSize);
+      else { ctx.fillStyle='#ff7b4d'; ctx.beginPath(); ctx.arc(px, py, Math.max(14, iconSize*0.3), 0, Math.PI*2); ctx.fill(); }
+
+      if (!status.unlocked){
+        ctx.globalAlpha = 1; ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(px+iconSize*0.34, py-iconSize*0.34, 10, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.font='900 12px system-ui'; ctx.fillText('🔒', px+iconSize*0.27, py-iconSize*0.29+4);
+      } else if (status.completed){
+        ctx.globalAlpha = 1; ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.arc(px+iconSize*0.34, py-iconSize*0.34, 11, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.lineWidth=3; ctx.beginPath();
+        ctx.moveTo(px+iconSize*0.27-6, py-iconSize*0.34);
+        ctx.lineTo(px+iconSize*0.27-1, py-iconSize*0.34+6);
+        ctx.lineTo(px+iconSize*0.27+8, py-iconSize*0.34-6);
+        ctx.strokeStyle='#fff'; ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(12,12,260,28);
+    ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+    ctx.fillText('Tap an unlocked place', 20, 31);
+  }
+
+  function drawLevel(){
+    // background / map art
+    if (level.mapImg){ ctx.drawImage(level.mapImg, 0, 0, LEVEL_W, LEVEL_H); }
+    else {
+      ctx.fillStyle='#dff8d6'; ctx.fillRect(0,0,LEVEL_W,LEVEL_H);
+      for (let y=0;y<LEVEL_H;y+=80){ for (let x=0;x<LEVEL_W;x+=80){ ctx.fillStyle=((x/80+y/80)%2===0)?'#c7f0bf':'#bdeab4'; ctx.fillRect(x,y,80,80); } }
+      // simple decorative obstacles when no art (rects only)
+      for (const o of level.obstacles){
+        if (o.type==='line') continue;
+        if (o.type==='tree'){ ctx.fillStyle='#8c5a32'; ctx.fillRect(o.x+46,o.y+40,12,30); ctx.beginPath(); ctx.arc(o.x+52,o.y+36,30,0,7); ctx.fillStyle='#4bbd54'; ctx.fill(); }
+        else if (o.type==='house'){ ctx.fillStyle='#ffe8b6'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.fillStyle='#d07a4a'; ctx.beginPath(); ctx.moveTo(o.x-8,o.y); ctx.lineTo(o.x+o.w/2,o.y-26); ctx.lineTo(o.x+o.w+8,o.y); ctx.closePath(); ctx.fill(); ctx.fillStyle='#9bd1ff'; ctx.fillRect(o.x+18,o.y+18,24,20); ctx.fillStyle='#885533'; ctx.fillRect(o.x+o.w-30,o.y+24,18,28); }
+        else { ctx.fillStyle='#bfbfbf'; ctx.beginPath(); ctx.arc(o.x+60,o.y+35,28,0,7); ctx.fill(); }
+      }
+    }
+
+    // ===== DEV overlays (rects + lines) =====
+    if (dev.enabled && level.obstacles && level.obstacles.length){
+      ctx.save();
+      for (let i=0;i<level.obstacles.length;i++){
+        const o = level.obstacles[i];
+        if (o.type==='line'){
+          // line stroke
+          ctx.lineWidth = (o.th||10);
+          ctx.strokeStyle = 'rgba(255,0,0,.7)';
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(o.x1,o.y1); ctx.lineTo(o.x2,o.y2); ctx.stroke();
+
+          // endpoints
+          ctx.fillStyle = 'rgba(255,0,0,.95)';
+          for (const [hx,hy] of [[o.x1,o.y1],[o.x2,o.y2]]){
+            ctx.beginPath(); ctx.arc(hx,hy,6,0,7); ctx.fill();
+          }
+          // rotate handle (at mid + normal)
+          const mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2;
+          const vx=o.x2-o.x1, vy=o.y2-o.y1, L=Math.hypot(vx,vy)||1;
+          const nx=-vy/L, ny=vx/L;
+          const rx = mx + nx*22, ry = my + ny*22;
+          ctx.beginPath(); ctx.arc(rx,ry,6,0,7);
+          ctx.fillStyle = (i===dev.wall.selected?'#ff7b7b':'#ffaaaa');
+          ctx.fill();
+
+          if (i === dev.wall.selected){
+            ctx.save();
+            ctx.setLineDash([6,4]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle='rgba(255,120,120,.95)';
+            ctx.beginPath(); ctx.moveTo(o.x1,o.y1); ctx.lineTo(o.x2,o.y2); ctx.stroke();
+            ctx.restore();
+          }
+        } else {
+          ctx.fillStyle   = 'rgba(255,0,0,.10)';
+          ctx.strokeStyle = 'rgba(255,0,0,.55)';
+          roundRect(o.x,o.y,o.w,o.h,6);
+          ctx.stroke();
+          if (dev.mode==='walls'){ ctx.fill(); }
+          if (i === dev.wall.selected){
+            ctx.save();
+            ctx.setLineDash([6,4]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle='rgba(255,120,120,.95)';
+            roundRect(o.x,o.y,o.w,o.h,6); ctx.stroke();
+            ctx.restore();
+          }
+          if (dev.mode==='walls'){
+            const hs = [[o.x,o.y],[o.x+o.w,o.y],[o.x,o.y+o.h],[o.x+o.w,o.y+o.h]];
+            ctx.fillStyle = 'rgba(255,0,0,.9)';
+            for (const [hx,hy] of hs){ ctx.beginPath(); ctx.arc(hx,hy,6,0,7); ctx.fill(); }
+          }
+        }
+      }
+      ctx.restore();
+    }
+    // ===== /DEV overlays =====
+
+    // Characters
+    for (const it of level.items){
+      if (app.collected.has(it.id)) continue;
+      const im = images[it.imgKey], size=it.r*2;
+      if (im) ctx.drawImage(im, it.x-it.r, it.y-it.r, size, size);
+      else { ctx.fillStyle='#ffc'; ctx.beginPath(); ctx.arc(it.x,it.y,it.r,0,7); ctx.fill(); }
+      ctx.fillStyle='rgba(0,0,0,.5)'; ctx.font='700 12px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+      ctx.fillText(it.name, it.x-ctx.measureText(it.name).width/2, it.y+it.r+14);
+    }
+
+    // Followers
+    if (level.followers && level.followers.length){
+      for (const f of level.followers){
+        ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(f.x,f.y+16,16,7,0,0,7); ctx.fill();
+        const im = images[f.imgKey]; const size = f.r*2;
+        if (im) ctx.drawImage(im, f.x - size/2, f.y - size/2, size, size);
+        else { ctx.beginPath(); ctx.arc(f.x,f.y,f.r,0,Math.PI*2); ctx.fillStyle='#ffd'; ctx.fill(); }
+      }
+    }
+
+    // Player
+    const p=level.player;
+    ctx.fillStyle='rgba(0,0,0,.18)'; ctx.beginPath(); ctx.ellipse(p.x,p.y+18,18,8,0,0,7); ctx.fill();
+    const avatar = images['player_avatar']; const AVATAR_SCALE=2;
+    if (avatar){
+      const size = p.r * AVATAR_SCALE;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r+2,0,Math.PI*2); ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.stroke();
+      ctx.drawImage(avatar, p.x - size/2, p.y - size/2, size, size);
+    } else {
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fillStyle=app.profile.color; ctx.fill();
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(p.x-5,p.y-2,3,0,7); ctx.arc(p.x+5,p.y-2,3,0,7); ctx.fill();
+      ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(p.x-5,p.y-2,1.5,0,7); ctx.arc(p.x+5,p.y-2,1.5,0,7); ctx.fill();
+    }
+
+    // Effects
+    drawEffects();
+
+    ctx.fillStyle='rgba(0,0,0,.6)'; ctx.fillRect(12,12,360,28);
+    ctx.fillStyle='#fff'; ctx.font='700 14px system-ui,-apple-system,Segoe UI,Roboto,Arial';
+    const completeText = isLevelComplete(level.id) ? ' (Complete)' : '';
+    ctx.fillText((level.place.name || 'Level') + completeText, 20, 31);
+  }
+
+  // ---------- Preload ----------
+  const preloadList = [
+    loadImageWithFallback('menu_bg',  ['images/menu-bg','menu-bg']),
+    loadImageWithFallback('world_map',['images/map','map']),
+    ...places.map(p => loadImageWithFallback('place_'+p.id, ['images/'+p.icon, p.icon])),
+    loadImageWithFallback('player_avatar', ['images/avatar/player'])
+  ];
+  Promise.all(preloadList).then(()=>{
+    const world = images['world_map'];
+    if (world && world.naturalWidth && world.naturalHeight){ MAP_W = world.naturalWidth; MAP_H = world.naturalHeight; }
+    places.forEach(placeXY);
+    requestAnimationFrame(tick);
+  });
+
+  // ---------- Main loop ----------
+  let last=performance.now();
+  function tick(t){
+    const dt=Math.min(32,t-last); last=t;
+    ctx.save(); ctx.scale(DPR,DPR);
+    const vw=canvas.width/DPR, vh=canvas.height/DPR;
+
+    if (app.state===STATES.MAP){
+      const scale = Math.min(vw/MAP_W, vh/MAP_H);
+      const oxW = (vw/scale - MAP_W) / 2;
+      const oyW = (vh/scale - MAP_H) / 2;
+
+      mapView.scale = scale; mapView.ox = oxW * scale; mapView.oy = oyW * scale;
+      ctx.scale(scale, scale); ctx.translate(oxW, oyW);
+      drawWorldMap(); zoneBadge.textContent="World Map";
+
+    } else if (app.state===STATES.LEVEL && level){
+      inputStep(level.player);
+      const nx=level.player.x+level.player.vx, ny=level.player.y+level.player.vy;
+      const fixed=resolveCollisions(level.player.x,level.player.y,nx,ny,level.player.r,level.obstacles,LEVEL_W,LEVEL_H);
+      level.player.x=fixed.x; level.player.y=fixed.y;
+
+      updateNPCs(dt);
+      updateFollowers(dt);
+
+      if (requestCollect){ tryCollect(); requestCollect=false; }
+
+      camera.scale = computeLevelScale(vw, vh);
+      const viewW = vw/camera.scale, viewH = vh/camera.scale;
+      const targetX = clamp(level.player.x - viewW/2, 0, LEVEL_W - viewW);
+      const targetY = clamp(level.player.y - viewH/2, 0, LEVEL_H - viewH);
+
+      if (CAMERA_HARD_LOCK){ camera.x = Math.round(targetX); camera.y = Math.round(targetY); }
+      else { const SMOOTH = 0.15; camera.x = lerp(camera.x, targetX, SMOOTH); camera.y = lerp(camera.y, targetY, SMOOTH); }
+
+      ctx.scale(camera.scale, camera.scale);
+      ctx.translate(-camera.x, -camera.y);
+
+      updateEffects(dt);
+      drawLevel();
+
+      zoneBadge.textContent = level.place.name;
+
+    } else {
+      drawMenu(vw,vh);
+      zoneBadge.textContent = '—';
+    }
+
+    ctx.restore();
+    if ((t|0)%1200<17) writeSave();
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- Input ----------
+  const keys=new Set();
+  addEventListener('keydown', e=>{
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+    keys.add(e.key.toLowerCase());
+    if (e.key==='m') setState(STATES.MAP);
+    if (e.key===' ') tryCollect();
+    if (e.key==='Escape'){
+      if (activeQuiz){ closeQuiz(true); activeQuiz=null; }
+      else if (completionOpen){ closeCompletePanel(); setState(STATES.MAP); }
+      else setState(STATES.MAP);
+    }
+    if (e.shiftKey && (e.key==='D' || e.key==='d')) toggleDev(!dev.enabled);
+
+    // Dev line shortcuts: rotate & thickness
+    if (dev.enabled && app.state===STATES.LEVEL && dev.mode==='walls' && dev.wall.selected>=0){
+      const o = level.obstacles[dev.wall.selected];
+      if (o && o.type==='line'){
+        if (e.key==='q' || e.key==='Q'){ rotateLineAroundCenter(o, -Math.PI/36); saveDevObstacles(level.id, level.obstacles); e.preventDefault(); }
+        if (e.key==='e' || e.key==='E'){ rotateLineAroundCenter(o,  Math.PI/36); saveDevObstacles(level.id, level.obstacles); e.preventDefault(); }
+        if (e.key==='-' || e.key==='_'){ o.th=Math.max(2,(o.th||10)-1); saveDevObstacles(level.id, level.obstacles); showToast(`Thickness: ${o.th}`); }
+        if (e.key==='+' || e.key==='='){ o.th=(o.th||10)+1; saveDevObstacles(level.id, level.obstacles); showToast(`Thickness: ${o.th}`); }
+      }
+    }
+
+    // Delete selected obstacle
+    if (dev.enabled && app.state===STATES.LEVEL && dev.mode==='walls' && (e.key==='Delete' || e.key==='Backspace')){
+      if (dev.wall.selected>=0){
+        level.obstacles.splice(dev.wall.selected,1);
+        dev.wall.selected=-1;
+        saveDevObstacles(level.id, level.obstacles);
+        showToast("Deleted");
+        e.preventDefault();
+      }
+    }
+
+    onUserGestureAudioUnlock();
+  });
+  addEventListener('keyup', e=> keys.delete(e.key.toLowerCase()));
+
+  // Virtual stick (mobile)
+  const stick = document.getElementById('stick'), nub=document.getElementById('nub');
+  let joy={active:false,sx:0,sy:0,dx:0,dy:0};
+  function stickPos(e){ const r=stick.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return {x:t.clientX-r.left,y:t.clientY-r.top}; }
+  function clampVec(v,max){ const m=Math.hypot(v.x,v.y); if (m>max){ v.x=v.x/m*max; v.y=v.y/m*max; } }
+  stick.addEventListener('touchstart', e=>{ e.preventDefault(); joy.active=true; const p=stickPos(e); joy.sx=p.x; joy.sy=p.y; joy.dx=joy.dy=0; nub.style.transform=`translate(${p.x-36}px,${p.y-36}px)`; onUserGestureAudioUnlock(); }, {passive:false});
+  stick.addEventListener('touchmove', e=>{ e.preventDefault(); const p=stickPos(e); joy.dx=p.x-joy.sx; joy.dy=p.y-joy.sy; clampVec(joy,56); nub.style.transform=`translate(${joy.sx+joy.dx-36}px,${joy.sy+joy.dy-36}px)`; }, {passive:false});
+  stick.addEventListener('touchend', ()=>{ joy.active=false; joy.dx=joy.dy=0; nub.style.transform=`translate(${stick.clientWidth/2-36}px,${stick.clientHeight/2-36}px)`; }, {passive:true});
+  let requestCollect=false;
+  document.getElementById('btnCollect').addEventListener('touchstart', ()=>{ requestCollect=true; setTimeout(()=>requestCollect=false,120); }, {passive:true});
+  function inputStep(p){
+    if (inputLocked){ p.vx = 0; p.vy = 0; return; }
+    let dx=0,dy=0;
+    if (keys.has('arrowleft')||keys.has('a'))dx-=1;
+    if (keys.has('arrowright')||keys.has('d'))dx+=1;
+    if (keys.has('arrowup')||keys.has('w'))dy-=1;
+    if (keys.has('arrowdown')||keys.has('s'))dy+=1;
+    if (joy.active||joy.dx||joy.dy){ dx+=joy.dx/56; dy+=joy.dy/56; }
+    const mag=Math.hypot(dx,dy); if (mag>0){ dx/=mag; dy/=mag; }
+    p.vx=dx*3.2; p.vy=dy*3.2;
+  }
+
+  // ---------- Collisions & Collect ----------
+  function circleRectHit(rx,ry,rw,rh,cx,cy,cr){
+    const nx=Math.max(rx,Math.min(cx,rx+rw)), ny=Math.max(ry,Math.min(cy,ry+rh));
+    return ((cx-nx)**2 + (cy-ny)**2) <= cr**2;
+  }
+  function resolveCircleLine(nx,ny,r,o){
+    // nearest point on segment
+    const ax=o.x1, ay=o.y1, bx=o.x2, by=o.y2;
+    const vx=bx-ax, vy=by-ay;
+    const L2 = vx*vx + vy*vy;
+    if (L2 < 1e-6) return {x:nx,y:ny};
+    let t = ((nx-ax)*vx + (ny-ay)*vy) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + t*vx, cy = ay + t*vy;
+    let dx = nx - cx, dy = ny - cy;
+    let d = Math.hypot(dx,dy);
+    const req = r + (o.th||10)/2;
+    if (d < req){
+      if (d < 1e-6){ // exactly on line; use normal
+        const L = Math.sqrt(L2); const nxn = -vy/L, nyn = vx/L;
+        dx = nxn; dy = nyn; d = 1;
+      } else { dx/=d; dy/=d; }
+      nx = cx + dx*req; ny = cy + dy*req;
+    }
+    return {x:nx,y:ny};
+  }
+  function resolveCollisions(px,py,nx,ny,r, obstacles, maxW, maxH){
+    nx=Math.max(r,Math.min(maxW-r,nx)); ny=Math.max(r,Math.min(maxH-r,ny));
+    for (const o of obstacles){
+      if (o.type==='line'){
+        const out = resolveCircleLine(nx,ny,r,o);
+        nx = out.x; ny = out.y;
+      } else {
+        if (circleRectHit(o.x,o.y,o.w,o.h,nx,ny,r)){
+          const left=Math.abs(nx-o.x), right=Math.abs(o.x+o.w-nx), top=Math.abs(ny-o.y), bottom=Math.abs(o.y+o.h-ny);
+          const m=Math.min(left,right,top,bottom);
+          if (m===left) nx=o.x-r; else if (m===right) nx=o.x+o.w+r; else if (m===top) ny=o.y-r; else ny=o.y+o.h+r;
+        }
+      }
+      nx=Math.max(r,Math.min(maxW-r,nx)); ny=Math.max(r,Math.min(maxH-r,ny));
+    }
+    return {x:nx,y:ny};
+  }
+
+  // ====== NEW: gating helpers ======
+  function hasCollected(id){ return app.collected.has(String(id||'').toLowerCase()); }
+
+  function canInteract(item){
+    const id = (item.id||'').toLowerCase();
+
+    // Calypso is only interactable after all other roster members in this level are collected
+    if (id === 'calypso'){
+      const roster = levelDefs[level.id]?.roster || [];
+      const others = roster.map(r => (r.id||'').toLowerCase()).filter(x => x && x !== 'calypso');
+      return others.every(hasCollected);
+    }
+
+    // Bingo requires Bluey actively following you
+    if (id === 'bingo'){
+      return hasFollower('bluey');
+    }
+
+    return true;
+  }
+
+  function gatingMessageFor(id){
+    id = (id||'').toLowerCase();
+    if (id==='calypso') return "Find everyone else here first, then Calypso will help!";
+    if (id==='bingo')   return "Bring Bluey with you to collect Bingo.";
+    return "Can't collect this one yet.";
+  }
+  // ====== /gating helpers ======
+
+  function captureItem(item){
+    const id = item.id.toLowerCase();
+    spawnCollectEffect(item.x, item.y);
+    app.collected.add(id);
+    writeSave();
+    renderStickerGrid();
+    playCollectSFX(id);
+    startFollowerIfSpecial(item);
+    showToast(`Sticker collected: ${item.name}!`);
+    if (isLevelComplete(level.id)) onLevelCompleted(level.id);
+  }
+
+  function tryCollect(){
+    if (app.state!==STATES.LEVEL || !level || activeQuiz) return false;
+
+    let nearestEligible=null, bestD=1e9;
+    let nearestAny=null, bestAnyD=1e9;
+
+    for (const it of level.items){
+      if (app.collected.has(it.id)) continue;
+      const d=Math.hypot(it.x-level.player.x, it.y-level.player.y);
+
+      if (d < bestAnyD){ bestAnyD = d; nearestAny = it; }
+
+      if (!canInteract(it)) continue;           // gate here
+      if (d < bestD){ bestD = d; nearestEligible = it; }
+    }
+
+    if (nearestEligible && bestD <= 64){
+      if (nearestEligible.id === 'calypso'){ openCalypsoQuiz(nearestEligible); return true; }
+      captureItem(nearestEligible);
+      return true;
+    }
+
+    // If something is close but gated, tell the player why
+    if (nearestAny && bestAnyD <= 64 && !canInteract(nearestAny)){
+      showToast(gatingMessageFor(nearestAny.id));
+    }
+    return false;
+  }
+
+  // ---------- DEV: char & wall/line editing ----------
+  function screenToWorld(clientX, clientY){
+    const rect = canvas.getBoundingClientRect();
+    const cx = (clientX - rect.left) * (canvas.width/rect.width) / DPR;
+    const cy = (clientY - rect.top)  * (canvas.height/rect.height) / DPR;
+    const wx = cx / camera.scale + camera.x;
+    const wy = cy / camera.scale + camera.y;
+    return {x:wx,y:wy};
+  }
+
+  // Character dragging
+  function pickCharacter(wx, wy){
+    if (!level) return null;
+    let best=null, bestD=1e9;
+    for (const it of level.items){
+      const d = Math.hypot(wx - it.x, wy - it.y);
+      if (d < it.r*1.6 && d < bestD){ best = it; bestD = d; }
+    }
+    return best;
+  }
+  function startDragChar(clientX, clientY){
+    if (!dev.enabled || app.state!==STATES.LEVEL || !level) return;
+    const {x:wx,y:wy} = screenToWorld(clientX, clientY);
+    const it = pickCharacter(wx, wy);
+    if (it){
+      dev.draggingChar = it;
+      dev.dragOff.x = wx - it.x;
+      dev.dragOff.y = wy - it.y;
+      devInfo.textContent = `DEV: dragging ${it.name}`;
+    }
+  }
+  function moveDragChar(clientX, clientY){
+    if (!dev.enabled || !dev.draggingChar || !level) return;
+    const {x:wx,y:wy} = screenToWorld(clientX, clientY);
+    const it = dev.draggingChar;
+    it.x = clamp(wx - dev.dragOff.x, it.r, LEVEL_W - it.r);
+    it.y = clamp(wy - dev.dragOff.y, it.r, LEVEL_H - it.r);
+  }
+  function endDragChar(){
+    if (!dev.enabled || !dev.draggingChar || !level) return;
+    const arr = level.items.map(it=>({ id: it.id, name: it.name, px: +(it.x/LEVEL_W).toFixed(6), py: +(it.y/LEVEL_H).toFixed(6), r: it.r }));
+    localStorage.setItem(LEVEL_DEV_KEY(level.id), JSON.stringify(arr));
+    showToast("Character layout saved");
+    dev.draggingChar = null;
+    devInfo.textContent = 'DEV: —';
+  }
+
+  // ----- Line helpers -----
+  function rotateLineAroundCenter(o, ang){
+    const cx=(o.x1+o.x2)/2, cy=(o.y1+o.y2)/2;
+    const vx=o.x2-o.x1, vy=o.y2-o.y1;
+    const L=Math.hypot(vx,vy)||1;
+    const a0=Math.atan2(vy,vx);
+    const a=a0+ang;
+    const hx=Math.cos(a)*L/2, hy=Math.sin(a)*L/2;
+    o.x1=cx-hx; o.y1=cy-hy; o.x2=cx+hx; o.y2=cy+hy;
+  }
+  function snapEndpoint(which, idx){
+    const o = level.obstacles[idx];
+    if (!o || o.type!=='line') return;
+    const target = which==='a' ? {x:o.x1,y:o.y1} : {x:o.x2,y:o.y2};
+    let best=null, bestD=1e9;
+    for (let i=0;i<level.obstacles.length;i++){
+      if (i===idx) continue;
+      const ob = level.obstacles[i];
+      const pts = [];
+      if (ob.type==='line'){ pts.push({x:ob.x1,y:ob.y1}); pts.push({x:ob.x2,y:ob.y2}); }
+      for (const p of pts){
+        const d=Math.hypot(target.x-p.x, target.y-p.y);
+        if (d < bestD){ bestD=d; best=p; }
+      }
+    }
+    if (best && bestD<=SNAP_R){
+      if (which==='a'){ o.x1=best.x; o.y1=best.y; }
+      else { o.x2=best.x; o.y2=best.y; }
+    }
+  }
+
+  function distToSegment(wx,wy,o){
+    const ax=o.x1, ay=o.y1, bx=o.x2, by=o.y2;
+    const vx=bx-ax, vy=by-ay;
+    const L2=vx*vx+vy*vy; if (L2<1e-6) return Math.hypot(wx-ax,wy-ay);
+    let t=((wx-ax)*vx + (wy-ay)*vy)/L2; t=Math.max(0,Math.min(1,t));
+    const cx=ax+t*vx, cy=ay+t*vy;
+    return Math.hypot(wx-cx,wy-cy);
+  }
+  function hitObstacle(wx,wy){
+    if (!level || !level.obstacles) return {index:-1, handle:null};
+    const R=8;
+    for (let i=level.obstacles.length-1;i>=0;i--){
+      const o=level.obstacles[i];
+      if (o.type==='line'){
+        if ((wx-o.x1)**2+(wy-o.y1)**2 <= R*R) return {index:i, handle:'a'};
+        if ((wx-o.x2)**2+(wy-o.y2)**2 <= R*R) return {index:i, handle:'b'};
+        const mx=(o.x1+o.x2)/2, my=(o.y1+o.y2)/2;
+        const vx=o.x2-o.x1, vy=o.y2-o.y1, L=Math.hypot(vx,vy)||1, nx=-vy/L, ny=vx/L;
+        const rx=mx+nx*22, ry=my+ny*22;
+        if ((wx-rx)**2+(wy-ry)**2 <= R*R) return {index:i, handle:'rot'};
+        if (distToSegment(wx,wy,o) <= (o.th||10)/2 + 6) return {index:i, handle:'move'};
+      } else {
+        const handles = { tl:[o.x,o.y], tr:[o.x+o.w,o.y], bl:[o.x,o.y+o.h], br:[o.x+o.w,o.y+o.h] };
+        for (const k in handles){
+          const [hx,hy]=handles[k];
+          if ((wx-hx)*(wx-hx)+(wy-hy)*(wy-hy) <= R*R) return {index:i, handle:k};
+        }
+        if (wx>=o.x && wx<=o.x+o.w && wy>=o.y && wy<=o.y+o.h) return {index:i, handle:'move'};
+      }
+    }
+    return {index:-1, handle:null};
+  }
+
+  // Pointer handlers (mouse)
+  canvas.addEventListener('mousedown', (e)=>{
+    onUserGestureAudioUnlock();
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+
+    const {x:wx,y:wy} = screenToWorld(e.clientX,e.clientY);
+
+    if (dev.mode === 'walls'){
+      if (dev.wall.adding==='wall'){
+        const o = {x:wx, y:wy, w:1, h:1, type:'wall'};
+        level.obstacles.push(o);
+        dev.wall.selected = level.obstacles.length-1;
+        dev.wall.drag = { ox:o.x, oy:o.y, ow:o.w, oh:o.h };
+        dev.wall.handle = 'br';
+        dev.wall.adding = null;
+        return;
+      }
+      if (dev.wall.adding==='line'){
+        const o = {type:'line', x1:wx, y1:wy, x2:wx, y2:wy, th:10};
+        level.obstacles.push(o);
+        dev.wall.selected = level.obstacles.length-1;
+        dev.wall.drag = { which:'b' };
+        dev.wall.handle = 'b';
+        dev.wall.adding = null;
+        return;
+      }
+
+      const hit = hitObstacle(wx,wy);
+      if (hit.index >= 0){
+        dev.wall.selected = hit.index;
+        const o = level.obstacles[hit.index];
+        dev.wall.handle = hit.handle;
+
+        if (o.type==='line'){
+          if (hit.handle==='move'){
+            dev.wall.drag = { dx:wx - ((o.x1+o.x2)/2), dy:wy - ((o.y1+o.y2)/2), which:'move' };
+          } else if (hit.handle==='rot'){
+            const cx=(o.x1+o.x2)/2, cy=(o.y1+o.y2)/2;
+            dev.wall.drag = {
+              which:'rot',
+              cx, cy,
+              len: Math.hypot(o.x2-o.x1, o.y2-o.y1),
+              segAngle0: Math.atan2(o.y2-o.y1, o.x2-o.x1),
+              pointerAngle0: Math.atan2(wy - cy, wx - cx)
+            };
+          } else {
+            dev.wall.drag = { which:hit.handle };
+          }
+        } else {
+          if (hit.handle){
+            dev.wall.drag = { ox:o.x, oy:o.y, ow:o.w, oh:o.h, which:hit.handle };
+          } else {
+            dev.wall.drag = { dx:wx - o.x, dy:wy - o.y, which:'move' };
+          }
+        }
+      } else {
+        dev.wall.selected = -1;
+      }
+      return;
+    }
+
+    if (dev.mode === 'chars') startDragChar(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mousemove', (e)=>{
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+    const {x:wx,y:wy} = screenToWorld(e.clientX,e.clientY);
+
+    if (dev.mode === 'walls'){
+      if (!dev.wall.drag || dev.wall.selected<0) return;
+      const o = level.obstacles[dev.wall.selected];
+
+      if (o.type==='line'){
+        if (dev.wall.drag.which==='move'){
+          const cx = wx - dev.wall.drag.dx, cy = wy - dev.wall.drag.dy;
+          const hx = (o.x2-o.x1)/2, hy=(o.y2-o.y1)/2;
+          o.x1 = clamp(cx - hx, 0, LEVEL_W); o.y1 = clamp(cy - hy, 0, LEVEL_H);
+          o.x2 = clamp(cx + hx, 0, LEVEL_W); o.y2 = clamp(cy + hy, 0, LEVEL_H);
+        } else if (dev.wall.drag.which==='rot'){
+          const aPointer = Math.atan2(wy - dev.wall.drag.cy, wx - dev.wall.drag.cx);
+          const delta = aPointer - dev.wall.drag.pointerAngle0;
+          const a = dev.wall.drag.segAngle0 + delta;
+          const hx=Math.cos(a)*dev.wall.drag.len/2, hy=Math.sin(a)*dev.wall.drag.len/2;
+          o.x1 = clamp(dev.wall.drag.cx - hx, 0, LEVEL_W);
+          o.y1 = clamp(dev.wall.drag.cy - hy, 0, LEVEL_H);
+          o.x2 = clamp(dev.wall.drag.cx + hx, 0, LEVEL_W);
+          o.y2 = clamp(dev.wall.drag.cy + hy, 0, LEVEL_H);
+        } else if (dev.wall.drag.which==='a'){
+          o.x1 = clamp(wx,0,LEVEL_W); o.y1 = clamp(wy,0,LEVEL_H);
+          snapEndpoint('a', dev.wall.selected);
+        } else if (dev.wall.drag.which==='b'){
+          o.x2 = clamp(wx,0,LEVEL_W); o.y2 = clamp(wy,0,LEVEL_H);
+          snapEndpoint('b', dev.wall.selected);
+        }
+        return;
+      }
+
+      const clampRect = (x,y,w,h)=>{
+        x = clamp(x, 0, LEVEL_W);
+        y = clamp(y, 0, LEVEL_H);
+        w = Math.max(4, Math.min(w, LEVEL_W - x));
+        h = Math.max(4, Math.min(h, LEVEL_H - y));
+        return {x,y,w,h};
+      };
+
+      if (dev.wall.drag.which==='move'){
+        const nx = wx - dev.wall.drag.dx;
+        const ny = wy - dev.wall.drag.dy;
+        const r  = clampRect(nx, ny, o.w, o.h);
+        o.x=r.x; o.y=r.y;
+      } else {
+        let x=o.x, y=o.y, w=o.w, h=o.h;
+        const d = dev.wall.drag;
+        if (d.which==='tl'){ x=wx; y=wy; w=(d.ox+d.ow)-x; h=(d.oy+d.oh)-y; }
+        if (d.which==='tr'){ x=d.ox; y=wy; w=wx-d.ox;          h=(d.oy+d.oh)-y; }
+        if (d.which==='bl'){ x=wx; y=d.oy; w=(d.ox+d.ow)-x;    h=wy-d.oy; }
+        if (d.which==='br'){ x=d.ox; y=d.oy; w=wx-d.ox;         h=wy-d.oy; }
+        if (w<0){ x+=w; w=-w; } if (h<0){ y+=h; h=-h; }
+        const r = clampRect(x,y,w,h);
+        o.x=r.x; o.y=r.y; o.w=r.w; o.h=r.h;
+      }
+      return;
+    }
+
+    if (dev.mode === 'chars') moveDragChar(e.clientX, e.clientY);
+  });
+
+  window.addEventListener('mouseup', ()=>{
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+
+    if (dev.mode==='walls'){
+      if (dev.wall.drag){
+        dev.wall.drag = null;
+        saveDevObstacles(level.id, level.obstacles);
+        showToast("Saved");
+      }
+      return;
+    }
+    if (dev.mode === 'chars') endDragChar();
+  });
+
+  // Touch (dev walls/chars)
+  canvas.addEventListener('touchstart', (e)=>{
+    onUserGestureAudioUnlock();
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+    const t=e.touches[0]; if (!t) return;
+    const {x:wx,y:wy} = screenToWorld(t.clientX,t.clientY);
+
+    if (dev.mode==='walls'){
+      if (dev.wall.adding==='wall'){
+        const o = {x:wx, y:wy, w:1, h:1, type:'wall'};
+        level.obstacles.push(o);
+        dev.wall.selected = level.obstacles.length-1;
+        dev.wall.drag = { ox:o.x, oy:o.y, ow:o.w, oh:o.h, which:'br' };
+        dev.wall.adding = null;
+        return;
+      }
+      if (dev.wall.adding==='line'){
+        const o = {type:'line', x1:wx, y1:wy, x2:wx, y2:wy, th:10};
+        level.obstacles.push(o);
+        dev.wall.selected = level.obstacles.length-1;
+        dev.wall.drag = { which:'b' };
+        dev.wall.adding = null;
+        return;
+      }
+      const hit = hitObstacle(wx,wy);
+      if (hit.index >= 0){
+        dev.wall.selected = hit.index;
+        const o = level.obstacles[hit.index];
+        dev.wall.handle = hit.handle;
+        if (o.type==='line'){
+          if (hit.handle==='move'){
+            dev.wall.drag = { dx:wx - ((o.x1+o.x2)/2), dy:wy - ((o.y1+o.y2)/2), which:'move' };
+          } else if (hit.handle==='rot'){
+            const cx=(o.x1+o.x2)/2, cy=(o.y1+o.y2)/2;
+            dev.wall.drag = { which:'rot', cx, cy, len: Math.hypot(o.x2-o.x1, o.y2-o.y1), segAngle0: Math.atan2(o.y2-o.y1, o.x2-o.x1), pointerAngle0: Math.atan2(wy - cy, wx - cx) };
+          } else { dev.wall.drag = { which:hit.handle }; }
+        } else {
+          if (hit.handle){ dev.wall.drag = { ox:o.x, oy:o.y, ow:o.w, oh:o.h, which:hit.handle }; }
+          else { dev.wall.drag = { dx:wx - o.x, dy:wy - o.y, which:'move' }; }
+      }
+      } else dev.wall.selected = -1;
+
+      e.preventDefault();
+      return;
+    }
+
+    startDragChar(t.clientX, t.clientY);
+  }, {passive:false});
+
+  window.addEventListener('touchmove', (e)=>{
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+    const t=e.touches[0]; if (!t) return;
+    const {x:wx,y:wy} = screenToWorld(t.clientX,t.clientY);
+
+    if (dev.mode==='walls'){
+      if (!dev.wall.drag || dev.wall.selected<0) return;
+      const o = level.obstacles[dev.wall.selected];
+
+      if (o.type==='line'){
+        if (dev.wall.drag.which==='move'){
+          const cx = wx - dev.wall.drag.dx, cy = wy - dev.wall.drag.dy;
+          const hx = (o.x2-o.x1)/2, hy=(o.y2-o.y1)/2;
+          o.x1 = clamp(cx - hx, 0, LEVEL_W); o.y1 = clamp(cy - hy, 0, LEVEL_H);
+          o.x2 = clamp(cx + hx, 0, LEVEL_W); o.y2 = clamp(cy + hy, 0, LEVEL_H);
+        } else if (dev.wall.drag.which==='rot'){
+          const aPointer = Math.atan2(wy - dev.wall.drag.cy, wx - dev.wall.drag.cx);
+          const delta = aPointer - dev.wall.drag.pointerAngle0;
+          const a = dev.wall.drag.segAngle0 + delta;
+          const hx=Math.cos(a)*dev.wall.drag.len/2, hy=Math.sin(a)*dev.wall.drag.len/2;
+          o.x1 = clamp(dev.wall.drag.cx - hx, 0, LEVEL_W);
+          o.y1 = clamp(dev.wall.drag.cy - hy, 0, LEVEL_H);
+          o.x2 = clamp(dev.wall.drag.cx + hx, 0, LEVEL_W);
+          o.y2 = clamp(dev.wall.drag.cy + hy, 0, LEVEL_H);
+        } else if (dev.wall.drag.which==='a'){
+          o.x1 = clamp(wx,0,LEVEL_W); o.y1 = clamp(wy,0,LEVEL_H);
+          snapEndpoint('a', dev.wall.selected);
+        } else if (dev.wall.drag.which==='b'){
+          o.x2 = clamp(wx,0,LEVEL_W); o.y2 = clamp(wy,0,LEVEL_H);
+          snapEndpoint('b', dev.wall.selected);
+        }
+        e.preventDefault();
+        return;
+      }
+
+      const clampRect = (x,y,w,h)=>{
+        x = clamp(x, 0, LEVEL_W);
+        y = clamp(y, 0, LEVEL_H);
+        w = Math.max(4, Math.min(w, LEVEL_W - x));
+        h = Math.max(4, Math.min(h, LEVEL_H - y));
+        return {x,y,w,h};
+      };
+      if (dev.wall.drag.which==='move'){
+        const nx = wx - dev.wall.drag.dx;
+        const ny = wy - dev.wall.drag.dy;
+        const r  = clampRect(nx, ny, o.w, o.h);
+        o.x=r.x; o.y=r.y;
+      } else {
+        let x=o.x, y=o.y, w=o.w, h=o.h;
+        const d = dev.wall.drag;
+        if (d.which==='tl'){ x=wx; y=wy; w=(d.ox+d.ow)-x; h=(d.oy+d.oh)-y; }
+        if (d.which==='tr'){ x=d.ox; y=wy; w=wx-d.ox;          h=(d.oy+d.oh)-y; }
+        if (d.which==='bl'){ x=wx; y=d.oy; w=(d.ox+d.ow)-x;    h=wy-d.oy; }
+        if (d.which==='br'){ x=d.ox; y=d.oy; w=wx-d.ox;         h=wy-d.oy; }
+        if (w<0){ x+=w; w=-w; } if (h<0){ y+=h; h=-h; }
+        const r = clampRect(x,y,w,h);
+        o.x=r.x; o.y=r.y; o.w=r.w; o.h=r.h;
+      }
+      e.preventDefault();
+      return;
+    }
+
+    moveDragChar(t.clientX, t.clientY);
+  }, {passive:false});
+
+  window.addEventListener('touchend', ()=>{
+    if (!(app.state===STATES.LEVEL && dev.enabled)) return;
+    if (dev.mode==='walls'){
+      if (dev.wall.drag){
+        dev.wall.drag = null;
+        saveDevObstacles(level.id, level.obstacles);
+        showToast("Saved");
+      }
+      return;
+    }
+    endDragChar();
+  }, {passive:true});
+
+  // ---------- Preload player avatar ----------
+  loadImageWithFallback('player_avatar', ['images/avatar/player']);
+})();
+</script>
+</body>
+</html>
